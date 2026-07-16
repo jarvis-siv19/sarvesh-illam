@@ -13,10 +13,15 @@ way in.
 | File | Purpose |
 | --- | --- |
 | `go2rtc.yaml` | Stream definitions. Credentials come from the environment. |
-| `dashboard.html` | Self-contained 8-tile dashboard. Open as a `file://` URL. |
+| `www/` | Dashboard, served by go2rtc itself at `http://<LAN_IP>:1984/`. |
 | `run.sh` | Loads `.env`, starts go2rtc. |
 | `.env.example` | Template for `.env`. |
 | `cctv.m3u` | Jellyfin Live TV playlist (optional). |
+
+`www/video-stream.js` and `www/video-rtc.js` are vendored from go2rtc v1.9.14 —
+setting `api.static_dir` replaces go2rtc's embedded web assets, so the player
+component must be shipped alongside the dashboard. If you upgrade the go2rtc
+binary, re-vendor both files from the matching tag.
 
 ## Setup
 
@@ -40,7 +45,13 @@ cp .env.example .env   # fill in credentials and DVR addresses
 ./run.sh
 ```
 
-Open `dashboard.html` in a browser. go2rtc's own UI is at http://localhost:1984.
+Open `http://<LAN_IP>:1984/` from any device on the LAN — desktop, phone, or TV
+browser. Phones get a scrollable column layout with swipe navigation in the
+focus view, and "Add to Home Screen" installs it as a full-screen app. The page
+also still works opened directly as a `file://` on the host machine.
+
+Give the host machine a fixed address (DHCP reservation on the router, or a
+manual IP) — it's baked into `LAN_IP` and into every device's bookmark.
 
 ## How it works
 

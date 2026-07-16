@@ -1,11 +1,13 @@
 api:
   listen: ":1984"
   origin: "*"          # required so the file:// dashboard can embed feeds cross-origin
+  static_dir: www      # serves the dashboard at http://<LAN_IP>:1984/
 
 webrtc:
   listen: ":8555"
   candidates:
     - 127.0.0.1:8555
+    - ${LAN_IP}:8555   # lets LAN clients (phone/TV) negotiate WebRTC to this Mac
 
 log:
   level: info

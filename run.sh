@@ -19,7 +19,7 @@ set -a
 source .env
 set +a
 
-for var in DVR_USER DVR_PASS DVR1_HOST DVR2_HOST; do
+for var in DVR_USER DVR_PASS DVR1_HOST DVR2_HOST LAN_IP; do
   if [ -z "${!var:-}" ]; then
     echo "error: $var is unset or empty in .env" >&2
     exit 1
