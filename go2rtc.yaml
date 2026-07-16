@@ -1,0 +1,41 @@
+api:
+  listen: ":1984"
+  origin: "*"          # required so the file:// dashboard can embed feeds cross-origin
+
+webrtc:
+  listen: ":8555"
+  candidates:
+    - 127.0.0.1:8555
+
+log:
+  level: info
+
+# Credentials and hosts come from the environment — see .env.example.
+# Start via ./run.sh, which loads .env before exec'ing go2rtc.
+#
+# Each camera exposes two streams:
+#   main (subtype=0) = 1280x720 — used for single-camera focus view
+#   sub  (subtype=1) = 352x288  — used for the multiview grid
+#
+# Each DVR has a low concurrent-stream limit: 4 simultaneous main streams will
+# cause i/o timeout drops. The limit is per-DVR, so the grid must use sub-streams.
+streams:
+  # ---------------- DVR 1 (channels 1-4) ----------------
+  cam1:     rtsp://${DVR_USER}:${DVR_PASS}@${DVR1_HOST}:554/cam/realmonitor?channel=1&subtype=0
+  cam1_sub: rtsp://${DVR_USER}:${DVR_PASS}@${DVR1_HOST}:554/cam/realmonitor?channel=1&subtype=1
+  cam2:     rtsp://${DVR_USER}:${DVR_PASS}@${DVR1_HOST}:554/cam/realmonitor?channel=2&subtype=0
+  cam2_sub: rtsp://${DVR_USER}:${DVR_PASS}@${DVR1_HOST}:554/cam/realmonitor?channel=2&subtype=1
+  cam3:     rtsp://${DVR_USER}:${DVR_PASS}@${DVR1_HOST}:554/cam/realmonitor?channel=3&subtype=0
+  cam3_sub: rtsp://${DVR_USER}:${DVR_PASS}@${DVR1_HOST}:554/cam/realmonitor?channel=3&subtype=1
+  cam4:     rtsp://${DVR_USER}:${DVR_PASS}@${DVR1_HOST}:554/cam/realmonitor?channel=4&subtype=0
+  cam4_sub: rtsp://${DVR_USER}:${DVR_PASS}@${DVR1_HOST}:554/cam/realmonitor?channel=4&subtype=1
+
+  # ---------------- DVR 2 (channels 1-4 -> cam5-8) ----------------
+  cam5:     rtsp://${DVR_USER}:${DVR_PASS}@${DVR2_HOST}:554/cam/realmonitor?channel=1&subtype=0
+  cam5_sub: rtsp://${DVR_USER}:${DVR_PASS}@${DVR2_HOST}:554/cam/realmonitor?channel=1&subtype=1
+  cam6:     rtsp://${DVR_USER}:${DVR_PASS}@${DVR2_HOST}:554/cam/realmonitor?channel=2&subtype=0
+  cam6_sub: rtsp://${DVR_USER}:${DVR_PASS}@${DVR2_HOST}:554/cam/realmonitor?channel=2&subtype=1
+  cam7:     rtsp://${DVR_USER}:${DVR_PASS}@${DVR2_HOST}:554/cam/realmonitor?channel=3&subtype=0
+  cam7_sub: rtsp://${DVR_USER}:${DVR_PASS}@${DVR2_HOST}:554/cam/realmonitor?channel=3&subtype=1
+  cam8:     rtsp://${DVR_USER}:${DVR_PASS}@${DVR2_HOST}:554/cam/realmonitor?channel=4&subtype=0
+  cam8_sub: rtsp://${DVR_USER}:${DVR_PASS}@${DVR2_HOST}:554/cam/realmonitor?channel=4&subtype=1

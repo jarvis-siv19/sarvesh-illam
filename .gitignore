@@ -1,0 +1,12 @@
+# Credentials
+.env
+
+# go2rtc binary — download per-platform, see README
+go2rtc
+go2rtc.exe
+
+# Runtime
+*.log
+
+.DS_Store
+.claude/settings.local.json

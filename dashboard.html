@@ -1,0 +1,363 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Surveillance — Live</title>
+<style>
+  :root{
+    --bg:#0b0e13; --panel:#14181f; --panel2:#1a1f28; --line:#242c38;
+    --text:#e7ecf3; --muted:#8b97a8; --faint:#5a6473;
+    --accent:#4f8cff; --live:#37d67a; --amber:#f5a623; --danger:#ff5c5c;
+    --radius:14px; --cols:2; --tileW:320px;
+  }
+  *{box-sizing:border-box}
+  html,body{height:100%;margin:0}
+  body{
+    background:var(--bg); color:var(--text); overflow:hidden;
+    font:14px/1.45 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    display:flex; flex-direction:column; height:100vh;
+  }
+
+  /* ---------- header ---------- */
+  header{
+    flex:0 0 auto; display:flex; align-items:center; gap:14px;
+    padding:11px 18px; border-bottom:1px solid var(--line);
+    background:linear-gradient(180deg,var(--panel),#101319);
+  }
+  .brand{display:flex;align-items:center;gap:11px;font-weight:660;letter-spacing:.2px;font-size:15px}
+  .brand .logo{
+    width:30px;height:30px;border-radius:9px;display:grid;place-items:center;font-size:16px;
+    background:linear-gradient(135deg,#2b6bff,#1b3a86); box-shadow:0 2px 10px rgba(79,140,255,.35);
+  }
+  .brand small{color:var(--muted);font-weight:500;font-size:12px;margin-left:2px}
+  .spacer{flex:1}
+  .count{
+    display:inline-flex;align-items:center;gap:7px;font-size:12px;color:var(--muted);
+    background:var(--panel2);border:1px solid var(--line);padding:5px 11px;border-radius:999px;
+  }
+  .count .dot{width:8px;height:8px;border-radius:50%;background:var(--live);
+    box-shadow:0 0 0 0 rgba(55,214,122,.6);animation:pulse 2.2s infinite}
+  @keyframes pulse{0%{box-shadow:0 0 0 0 rgba(55,214,122,.55)}70%{box-shadow:0 0 0 6px rgba(55,214,122,0)}100%{box-shadow:0 0 0 0 rgba(55,214,122,0)}}
+
+  /* segmented DVR filter */
+  .seg{display:inline-flex;background:var(--panel2);border:1px solid var(--line);border-radius:10px;padding:3px;gap:2px}
+  .seg button{
+    border:0;background:transparent;color:var(--muted);font-size:12px;font-weight:600;
+    padding:5px 12px;border-radius:7px;cursor:pointer;transition:.15s;
+  }
+  .seg button:hover{color:var(--text)}
+  .seg button.on{background:var(--accent);color:#fff}
+
+  .hd-toggle{display:flex;align-items:center;gap:9px;font-size:12px;color:var(--muted);user-select:none}
+  .switch{position:relative;width:40px;height:22px;border-radius:999px;background:#2a323f;
+    border:1px solid var(--line);cursor:pointer;transition:.18s;flex:0 0 auto}
+  .switch::after{content:"";position:absolute;top:2px;left:2px;width:16px;height:16px;border-radius:50%;
+    background:#c7cfdb;transition:.18s}
+  .switch.on{background:var(--accent);border-color:var(--accent)}
+  .switch.on::after{transform:translateX(18px);background:#fff}
+  .iconbtn{
+    width:34px;height:34px;border-radius:9px;border:1px solid var(--line);background:var(--panel2);
+    color:var(--text);cursor:pointer;display:grid;place-items:center;font-size:15px;transition:.15s;
+  }
+  .iconbtn:hover{border-color:var(--accent);color:#fff}
+  #clock{font-variant-numeric:tabular-nums;color:var(--muted);font-size:12px;min-width:70px;text-align:right}
+
+  /* ---------- stage ---------- */
+  .stage{position:relative;flex:1;min-height:0}
+
+  .grid{
+    position:absolute;inset:0;display:flex;flex-wrap:wrap;gap:10px;padding:12px;
+    align-content:center;justify-content:center;
+  }
+  .tile{
+    position:relative;width:var(--tileW);aspect-ratio:16/9;flex:0 0 auto;
+    background:#000;border:1px solid var(--line);border-radius:var(--radius);
+    overflow:hidden;cursor:pointer;transition:border-color .15s, transform .12s;
+  }
+  .tile:hover{border-color:#3d4a63;transform:translateY(-1px)}
+  .tile:hover .expand{opacity:1}
+
+  video-stream{position:absolute;inset:0;display:block;width:100%;height:100%}
+  video-stream video{width:100%!important;height:100%!important;object-fit:cover;pointer-events:none;background:#000}
+  video-stream .info{display:none!important}
+  video-stream video::-webkit-media-controls,
+  video-stream video::-webkit-media-controls-enclosure{display:none!important}
+
+  .label{
+    position:absolute;left:9px;bottom:9px;z-index:4;display:flex;align-items:center;gap:7px;
+    background:rgba(7,10,15,.72);backdrop-filter:blur(7px);padding:4px 10px;border-radius:8px;
+    font-size:12px;font-weight:600;letter-spacing:.3px;pointer-events:none;
+  }
+  .label .sig{width:7px;height:7px;border-radius:50%;background:var(--amber);transition:.3s}
+  .tile.live .label .sig{background:var(--live)}
+  .badge{
+    position:absolute;right:9px;top:9px;z-index:4;font-size:10px;font-weight:700;letter-spacing:.5px;
+    padding:3px 7px;border-radius:6px;background:rgba(7,10,15,.72);backdrop-filter:blur(7px);
+    color:var(--muted);pointer-events:none;
+  }
+  .badge.hd{color:#dfe8ff;background:rgba(79,140,255,.28)}
+  .expand{
+    position:absolute;right:9px;bottom:9px;z-index:4;opacity:0;transition:.15s;
+    width:28px;height:28px;border-radius:8px;background:rgba(7,10,15,.72);backdrop-filter:blur(7px);
+    display:grid;place-items:center;font-size:13px;color:var(--text);pointer-events:none;
+  }
+  .spinner{position:absolute;inset:0;z-index:3;display:grid;place-items:center;pointer-events:none}
+  .tile.live .spinner{display:none}
+  .spinner i{width:22px;height:22px;border-radius:50%;border:2px solid rgba(255,255,255,.18);
+    border-top-color:var(--accent);animation:spin .8s linear infinite;display:block}
+  @keyframes spin{to{transform:rotate(360deg)}}
+
+  .tile.offline{cursor:default;border-style:dashed;border-color:#2c3542;background:#0d1117}
+  .tile.offline:hover{transform:none;border-color:#2c3542}
+  .offbox{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;color:var(--faint)}
+  .offbox .ico{font-size:24px;opacity:.7}
+  .offbox .t{font-size:13px;font-weight:600;color:var(--muted)}
+  .offbox .s{font-size:11px}
+
+  /* ---------- focus view ---------- */
+  .focus{position:absolute;inset:0;z-index:20;background:#000;display:none;flex-direction:column}
+  .focus.show{display:flex}
+  .focus .fvideo{position:relative;flex:1;min-height:0;background:#000}
+  .focus video-stream video{object-fit:contain}
+  .focus .topbar{
+    position:absolute;top:0;left:0;right:0;z-index:5;display:flex;align-items:center;gap:12px;
+    padding:14px 16px;background:linear-gradient(180deg,rgba(6,9,13,.85),rgba(6,9,13,0));pointer-events:none;
+  }
+  .focus .topbar > *{pointer-events:auto}
+  .back{
+    display:inline-flex;align-items:center;gap:8px;background:rgba(20,24,31,.85);border:1px solid var(--line);
+    color:var(--text);padding:8px 14px;border-radius:10px;cursor:pointer;font-size:13px;font-weight:600;
+  }
+  .back:hover{border-color:var(--accent)}
+  .focus .fname{font-size:15px;font-weight:660;display:flex;align-items:center;gap:9px}
+  .focus .fname .sig{width:8px;height:8px;border-radius:50%;background:var(--live)}
+  .nav{
+    position:absolute;top:50%;transform:translateY(-50%);z-index:5;width:46px;height:46px;border-radius:50%;
+    background:rgba(20,24,31,.7);border:1px solid var(--line);color:#fff;cursor:pointer;font-size:20px;
+    display:grid;place-items:center;transition:.15s;
+  }
+  .nav:hover{background:var(--accent);border-color:var(--accent)}
+  .nav.prev{left:16px} .nav.next{right:16px}
+</style>
+</head>
+<body>
+  <header>
+    <div class="brand">
+      <span class="logo">📹</span>
+      <span>Surveillance<small id="hostlbl"></small></span>
+    </div>
+    <span class="count"><span class="dot"></span><span id="countTxt">—</span></span>
+    <div class="seg" id="filter">
+      <button data-f="all" class="on">All</button>
+      <button data-f="1">DVR 1</button>
+      <button data-f="2">DVR 2</button>
+    </div>
+    <div class="spacer"></div>
+    <label class="hd-toggle">HD grid <span class="switch" id="hdSwitch" title="Stream the grid in full HD (heavier on the DVR)"></span></label>
+    <button class="iconbtn" id="fsBtn" title="Fullscreen">⛶</button>
+    <span id="clock"></span>
+  </header>
+
+  <div class="stage">
+    <div class="grid" id="grid"></div>
+
+    <div class="focus" id="focus">
+      <div class="fvideo" id="fvideo"></div>
+      <div class="topbar">
+        <button class="back" id="backBtn">‹ Back to grid</button>
+        <div class="fname"><span class="sig"></span><span id="fname"></span></div>
+        <span class="badge hd">HD</span>
+      </div>
+      <button class="nav prev" id="prevBtn">‹</button>
+      <button class="nav next" id="nextBtn">›</button>
+    </div>
+  </div>
+
+<script>
+/* ============================ CONFIG ============================ */
+const HOST = "http://localhost:1984";           // go2rtc
+const CAMERAS = [
+  { name:"Cam 1", main:"cam1", sub:"cam1_sub", dvr:1 },
+  { name:"Cam 2", main:"cam2", sub:"cam2_sub", dvr:1 },
+  { name:"Cam 3", main:"cam3", sub:"cam3_sub", dvr:1 },
+  { name:"Cam 4", main:"cam4", sub:"cam4_sub", dvr:1 },
+  { name:"Cam 5", main:"cam5", sub:"cam5_sub", dvr:2 },
+  { name:"Cam 6", main:"cam6", sub:"cam6_sub", dvr:2 },
+  { name:"Cam 7", main:"cam7", sub:"cam7_sub", dvr:2 },
+  { name:"Cam 8", main:"cam8", sub:"cam8_sub", dvr:2 },
+];
+/* =============================================================== */
+
+const s = document.createElement("script");
+s.type = "module"; s.src = HOST + "/video-stream.js";
+document.head.appendChild(s);
+
+document.getElementById("hostlbl").textContent = " · " + HOST.replace(/^https?:\/\//,"");
+
+let hd = localStorage.getItem("hdgrid") === "1";
+let filter = localStorage.getItem("dvrfilter") || "all";   // "all" | "1" | "2"
+let available = new Set();
+let focusIndex = -1;
+
+const stage  = document.querySelector(".stage");
+const grid   = document.getElementById("grid");
+const focusEl= document.getElementById("focus");
+const fvideo = document.getElementById("fvideo");
+const fname  = document.getElementById("fname");
+
+function wsFor(name){ return `${HOST}/api/ws?src=${encodeURIComponent(name)}`; }
+function camAvailable(cam){ return available.has(cam.sub) || available.has(cam.main); }
+function inFilter(cam){ return filter === "all" || String(cam.dvr) === filter; }
+function visibleCams(){ return CAMERAS.map((c,i)=>({c,i})).filter(x=>inFilter(x.c)); }
+
+function makeStream(name){
+  const el = document.createElement("video-stream");
+  el.mode = "webrtc,mse";
+  el.background = false;
+  el.src = wsFor(name);
+  return el;
+}
+function markLive(tile, el){
+  const check = () => {
+    const v = el.querySelector("video");
+    if (v){
+      v.removeAttribute("controls");
+      const onlive = () => tile.classList.add("live");
+      v.addEventListener("playing", onlive);
+      if (v.readyState >= 3 && !v.paused) onlive();
+    } else requestAnimationFrame(check);
+  };
+  check();
+}
+
+/* fit visible 16:9 tiles as large as possible inside the stage */
+function fitLayout(){
+  const n = visibleCams().length;
+  if (!n) return;
+  const gap = 10, pad = 12;
+  const W = stage.clientWidth  - pad*2;
+  const H = stage.clientHeight - pad*2;
+  let best = { cols:1, w:0 };
+  for (let cols=1; cols<=n; cols++){
+    const rows = Math.ceil(n/cols);
+    const w = Math.min((W - gap*(cols-1))/cols, ((H - gap*(rows-1))/rows) * (16/9));
+    if (w > best.w) best = { cols, w };
+  }
+  grid.style.setProperty("--cols", best.cols);
+  grid.style.setProperty("--tileW", Math.floor(best.w) + "px");
+}
+
+function renderGrid(){
+  grid.innerHTML = "";
+  visibleCams().forEach(({c:cam, i}) => {
+    const tile = document.createElement("div");
+    tile.className = "tile";
+    if (!camAvailable(cam)){
+      tile.classList.add("offline");
+      tile.innerHTML = `<div class="offbox">
+          <div class="ico">⃠</div><div class="t">${cam.name}</div>
+          <div class="s">DVR ${cam.dvr} · not connected</div></div>`;
+      grid.appendChild(tile);
+      return;
+    }
+    const useMain = hd && available.has(cam.main);
+    const srcName = useMain ? cam.main : (available.has(cam.sub) ? cam.sub : cam.main);
+    tile.innerHTML = `
+      <div class="spinner"><i></i></div>
+      <div class="label"><span class="sig"></span>${cam.name}</div>
+      <span class="badge ${useMain?"hd":""}">${useMain?"HD":"SD"}</span>
+      <div class="expand">⤢</div>`;
+    const el = makeStream(srcName);
+    tile.insertBefore(el, tile.firstChild);
+    markLive(tile, el);
+    tile.onclick = () => openFocus(i);
+    tile.ondblclick = () => { openFocus(i); document.documentElement.requestFullscreen?.(); };
+    grid.appendChild(tile);
+  });
+  fitLayout();
+}
+function teardownGrid(){ grid.innerHTML = ""; }
+
+function openFocus(i){
+  focusIndex = i;
+  const cam = CAMERAS[i];
+  teardownGrid();
+  fvideo.innerHTML = "";
+  const srcName = available.has(cam.main) ? cam.main : cam.sub;
+  const el = makeStream(srcName);
+  fvideo.appendChild(el);
+  fname.textContent = cam.name;
+  focusEl.classList.add("show");
+  updateNav();
+}
+function closeFocus(){
+  focusEl.classList.remove("show");
+  fvideo.innerHTML = "";
+  focusIndex = -1;
+  renderGrid();
+}
+function step(dir){
+  const avail = CAMERAS.map((c,idx)=>({c,idx})).filter(x=>camAvailable(x.c) && inFilter(x.c));
+  if(!avail.length) return;
+  let pos = avail.findIndex(x=>x.idx===focusIndex);
+  pos = (pos + dir + avail.length) % avail.length;
+  openFocus(avail[pos].idx);
+}
+function updateNav(){
+  const n = CAMERAS.filter(c=>camAvailable(c)&&inFilter(c)).length;
+  document.getElementById("prevBtn").style.display =
+  document.getElementById("nextBtn").style.display = n > 1 ? "grid" : "none";
+}
+
+async function refreshAvailability(initial){
+  try{
+    const r = await fetch(HOST + "/api/streams", {cache:"no-store"});
+    const data = await r.json();
+    const next = new Set(Object.keys(data || {}));
+    const changed = next.size !== available.size || [...next].some(k=>!available.has(k));
+    available = next;
+    document.getElementById("countTxt").textContent =
+      `${CAMERAS.filter(camAvailable).length} / ${CAMERAS.length} online`;
+    if ((changed || initial) && !focusEl.classList.contains("show")) renderGrid();
+  }catch(e){ document.getElementById("countTxt").textContent = "go2rtc offline"; }
+}
+
+/* ---- controls ---- */
+const hdSwitch = document.getElementById("hdSwitch");
+function paintHd(){ hdSwitch.classList.toggle("on", hd); }
+hdSwitch.onclick = () => { hd = !hd; localStorage.setItem("hdgrid", hd?"1":"0"); paintHd();
+  if(!focusEl.classList.contains("show")) renderGrid(); };
+paintHd();
+
+document.getElementById("filter").addEventListener("click", e=>{
+  const b = e.target.closest("button[data-f]"); if(!b) return;
+  filter = b.dataset.f; localStorage.setItem("dvrfilter", filter);
+  document.querySelectorAll("#filter button").forEach(x=>x.classList.toggle("on", x.dataset.f===filter));
+  if(focusEl.classList.contains("show")) closeFocus(); else renderGrid();
+});
+document.querySelectorAll("#filter button").forEach(x=>x.classList.toggle("on", x.dataset.f===filter));
+
+document.getElementById("backBtn").onclick = closeFocus;
+document.getElementById("prevBtn").onclick = () => step(-1);
+document.getElementById("nextBtn").onclick = () => step(1);
+document.getElementById("fsBtn").onclick = () =>
+  document.fullscreenElement ? document.exitFullscreen() : document.documentElement.requestFullscreen?.();
+document.addEventListener("keydown", e => {
+  if(e.key === "Escape" && focusEl.classList.contains("show")) closeFocus();
+  if(focusEl.classList.contains("show")){
+    if(e.key === "ArrowLeft") step(-1);
+    if(e.key === "ArrowRight") step(1);
+  }
+});
+window.addEventListener("resize", () => { if(!focusEl.classList.contains("show")) fitLayout(); });
+
+const clock = document.getElementById("clock");
+setInterval(()=> clock.textContent = new Date().toLocaleTimeString(), 1000);
+clock.textContent = new Date().toLocaleTimeString();
+
+setTimeout(()=> refreshAvailability(true), 400);
+setInterval(()=> refreshAvailability(false), 15000);
+</script>
+</body>
+</html>
