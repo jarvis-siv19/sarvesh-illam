@@ -7,6 +7,10 @@ go2rtc.exe
 
 # Runtime
 *.log
+alerts/.venv/
+__pycache__/
+alerts/snapshots/
+alerts/models/
 
 .DS_Store
 .claude/settings.local.json

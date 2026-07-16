@@ -118,9 +118,47 @@ embed feeds cross-origin. It makes the API accessible from any page you visit
 while go2rtc is running, which is an acceptable trade on a trusted LAN — but
 don't expose port 1984 to the internet.
 
+## Alerts service
+
+`alerts/` is a Python service (managed with [uv](https://docs.astral.sh/uv/))
+that watches every camera through go2rtc's local RTSP server — the DVRs see no
+extra connections — and pushes alerts to Telegram plus an event feed the
+dashboard shows in its bell menu.
+
+```sh
+cd alerts && ./run.sh     # http://localhost:8090/api/events
+```
+
+What it detects today:
+
+- **Camera down** — no frames for 30 s (with recovery notice)
+- **Image black / camera covered** — brightness or sharpness collapsing
+  against that camera's *own* per-mode baseline. Absolute thresholds don't
+  work here: a camera whose IR floods the scene sits at luma ~130 at night
+  while one facing an unlit yard legitimately sits at ~2, so "dark" is only
+  meaningful relative to what each camera normally sees.
+- **Day/night (IR) tracking** — each camera's IR switch is detected from
+  frame saturation (with hysteresis and a grace window), thresholds adapt,
+  and the dashboard shows a 🌙 on night-mode tiles.
+
+### Telegram setup
+
+1. Message **@BotFather** on Telegram → `/newbot` → copy the token.
+2. Message your new bot once (anything), then open
+   `https://api.telegram.org/bot<TOKEN>/getUpdates` and copy
+   `message.chat.id` from the response.
+3. Add both to `.env`:
+
+```sh
+TELEGRAM_BOT_TOKEN=123456:ABC...
+TELEGRAM_CHAT_ID=123456789
+```
+
+Without these the service still runs — events just stay local (log + dashboard).
+
 ## Status
 
-Both DVRs live, 8 cameras in the dashboard.
+Both DVRs live, 8 cameras on the LAN dashboard, camera-health alerts running.
 
-Planned: OpenCV analytics over the sub-streams, Home Assistant integration, and
-a launchd agent to keep go2rtc up across reboots.
+Planned: person detection on all cameras, no-helmet rider alert on the parking
+feed, Home Assistant integration, launchd agents for go2rtc + alerts.

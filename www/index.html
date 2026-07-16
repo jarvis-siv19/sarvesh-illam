@@ -146,6 +146,44 @@
   .nav:hover{background:var(--accent);border-color:var(--accent)}
   .nav.prev{left:16px} .nav.next{right:16px}
 
+  /* ---------- alerts ---------- */
+  .bell{position:relative}
+  .bell .n{
+    position:absolute;top:-5px;right:-5px;min-width:16px;height:16px;border-radius:8px;
+    background:var(--danger);color:#fff;font-size:10px;font-weight:700;
+    display:grid;place-items:center;padding:0 4px;
+  }
+  .alertbar{
+    position:absolute;left:50%;top:14px;transform:translateX(-50%);z-index:30;
+    display:none;align-items:center;gap:10px;max-width:min(92%,560px);
+    background:rgba(26,15,18,.92);border:1px solid var(--danger);border-radius:12px;
+    padding:10px 16px;font-size:13px;font-weight:600;backdrop-filter:blur(8px);
+    box-shadow:0 8px 30px rgba(0,0,0,.5);
+  }
+  .alertbar.show{display:flex}
+  .alertbar .ic{font-size:16px}
+  .tile.alerting{border-color:var(--danger);animation:alertpulse 1.2s ease-in-out 6}
+  @keyframes alertpulse{50%{box-shadow:0 0 0 4px rgba(255,92,92,.35)}}
+  .drawer{
+    position:absolute;right:12px;top:12px;bottom:12px;width:min(340px,85vw);z-index:25;
+    background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);
+    display:none;flex-direction:column;overflow:hidden;box-shadow:0 12px 40px rgba(0,0,0,.5);
+  }
+  .drawer.show{display:flex}
+  .drawer h3{margin:0;padding:13px 16px;font-size:13px;border-bottom:1px solid var(--line);
+    display:flex;justify-content:space-between;align-items:center}
+  .drawer h3 button{border:0;background:none;color:var(--muted);cursor:pointer;font-size:15px}
+  .evlist{flex:1;overflow-y:auto;padding:8px}
+  .ev{display:flex;gap:10px;padding:9px;border-radius:10px;align-items:flex-start}
+  .ev:hover{background:var(--panel2)}
+  .ev img{width:74px;aspect-ratio:16/9;object-fit:cover;border-radius:6px;flex:0 0 auto}
+  .ev .ic2{font-size:17px;width:24px;text-align:center;flex:0 0 auto;margin-top:2px}
+  .ev .msg{font-size:12px;line-height:1.4}
+  .ev .when{font-size:11px;color:var(--faint);margin-top:2px}
+  .ev.recover{opacity:.55}
+  .evempty{color:var(--faint);font-size:12px;text-align:center;padding:30px 10px}
+  .nightdot{margin-left:5px;font-size:11px}
+
   /* notch / home-indicator safe areas (no-ops on desktop) */
   header{padding-top:calc(11px + env(safe-area-inset-top))}
   .nav.prev{left:calc(16px + env(safe-area-inset-left))}
@@ -187,11 +225,17 @@
     </div>
     <div class="spacer"></div>
     <label class="hd-toggle">HD grid <span class="switch" id="hdSwitch" title="Stream the grid in full HD (heavier on the DVR)"></span></label>
+    <button class="iconbtn bell" id="bellBtn" title="Alerts">🔔<span class="n" id="bellN" style="display:none">0</span></button>
     <button class="iconbtn" id="fsBtn" title="Fullscreen">⛶</button>
     <span id="clock"></span>
   </header>
 
   <div class="stage">
+    <div class="alertbar" id="alertbar"><span class="ic">⚠️</span><span id="alerttxt"></span></div>
+    <div class="drawer" id="drawer">
+      <h3>Alerts <button id="drawerClose">✕</button></h3>
+      <div class="evlist" id="evlist"><div class="evempty">No events</div></div>
+    </div>
     <div class="grid" id="grid"></div>
 
     <div class="focus" id="focus">
@@ -295,6 +339,7 @@ function renderGrid(){
   visibleCams().forEach(({c:cam, i}) => {
     const tile = document.createElement("div");
     tile.className = "tile";
+    tile.dataset.cam = cam.main;
     if (!camAvailable(cam)){
       tile.classList.add("offline");
       tile.innerHTML = `<div class="offbox">
@@ -307,7 +352,7 @@ function renderGrid(){
     const srcName = useMain ? cam.main : (available.has(cam.sub) ? cam.sub : cam.main);
     tile.innerHTML = `
       <div class="spinner"><i></i></div>
-      <div class="label"><span class="sig"></span>${cam.name}</div>
+      <div class="label"><span class="sig"></span>${cam.name}<span class="nightdot"></span></div>
       <span class="badge ${useMain?"hd":""}">${useMain?"HD":"SD"}</span>
       <div class="expand">⤢</div>`;
     const el = makeStream(srcName);
@@ -406,6 +451,82 @@ focusEl.addEventListener("touchend", e => {
   swipeX = swipeY = null;
 }, {passive:true});
 window.addEventListener("resize", () => { if(!focusEl.classList.contains("show")) fitLayout(); });
+
+/* ---- alerts service (optional — the page works fine without it) ---- */
+const ALERTS = (location.protocol.startsWith("http")
+  ? `${location.protocol}//${location.hostname}` : "http://localhost") + ":8090";
+const KIND_ICON = {down:"📵", black:"⬛", covered:"🫣", person:"🚶", no_helmet:"🪖"};
+let lastEvId = Number(localStorage.getItem("lastEvId") || 0);
+
+function fmtWhen(ts){
+  const d = Date.now()/1000 - ts;
+  if (d < 60) return "just now";
+  if (d < 3600) return Math.floor(d/60) + " min ago";
+  if (d < 86400) return Math.floor(d/3600) + " h ago";
+  return new Date(ts*1000).toLocaleString();
+}
+
+let bannerTimer = null;
+function showBanner(ev){
+  document.getElementById("alerttxt").textContent = ev.message;
+  const bar = document.getElementById("alertbar");
+  bar.classList.add("show");
+  clearTimeout(bannerTimer);
+  bannerTimer = setTimeout(()=> bar.classList.remove("show"), 8000);
+}
+
+function renderEvents(events){
+  const list = document.getElementById("evlist");
+  if (!events.length){ list.innerHTML = '<div class="evempty">No events</div>'; return; }
+  list.innerHTML = events.map(e => `
+    <div class="ev ${e.state}">
+      <span class="ic2">${e.state==="recover" ? "✅" : (KIND_ICON[e.kind]||"⚠️")}</span>
+      <div><div class="msg">${e.message}</div><div class="when">${fmtWhen(e.ts)}</div></div>
+      ${e.snapshot ? `<a href="${ALERTS}/api/snapshots/${e.snapshot}" target="_blank">
+         <img src="${ALERTS}/api/snapshots/${e.snapshot}" loading="lazy"></a>` : ""}
+    </div>`).join("");
+}
+
+function paintHealth(health){
+  document.querySelectorAll(".tile[data-cam]").forEach(t => {
+    const h = health[t.dataset.cam];
+    const dot = t.querySelector(".nightdot");
+    if (dot) dot.textContent = h && h.mode === "night" ? "🌙" : "";
+  });
+}
+
+async function pollAlerts(){
+  try{
+    const [evR, hR] = await Promise.all([
+      fetch(ALERTS + "/api/events?limit=50", {cache:"no-store"}),
+      fetch(ALERTS + "/api/health", {cache:"no-store"}),
+    ]);
+    const events = await evR.json(), health = await hR.json();
+    renderEvents(events); paintHealth(health);
+
+    const alerts1h = events.filter(e => e.state==="alert" && Date.now()/1000 - e.ts < 3600);
+    const badge = document.getElementById("bellN");
+    badge.style.display = alerts1h.length ? "grid" : "none";
+    badge.textContent = alerts1h.length;
+
+    const fresh = events.filter(e => e.id > lastEvId && e.state === "alert");
+    if (fresh.length){
+      lastEvId = Math.max(...events.map(e => e.id));
+      localStorage.setItem("lastEvId", lastEvId);
+      showBanner(fresh[0]);
+      fresh.forEach(e => {
+        const t = document.querySelector(`.tile[data-cam="${e.camera}"]`);
+        if (t){ t.classList.add("alerting"); setTimeout(()=>t.classList.remove("alerting"), 8000); }
+      });
+    }
+  }catch(e){ /* alerts service offline — dashboard still works */ }
+}
+document.getElementById("bellBtn").onclick = () =>
+  document.getElementById("drawer").classList.toggle("show");
+document.getElementById("drawerClose").onclick = () =>
+  document.getElementById("drawer").classList.remove("show");
+setTimeout(pollAlerts, 800);
+setInterval(pollAlerts, 10000);
 
 const clock = document.getElementById("clock");
 setInterval(()=> clock.textContent = new Date().toLocaleTimeString(), 1000);

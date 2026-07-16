@@ -1,0 +1,35 @@
+# Alerts service configuration. Secrets (Telegram token) live in ../.env.
+
+# Frames are read from go2rtc's local RTSP server, so the DVRs see no extra
+# connections regardless of how many detectors run.
+go2rtc_rtsp: rtsp://127.0.0.1:8554
+
+api_port: 8090
+snapshot_dir: snapshots
+snapshot_keep: 300
+
+cameras:
+  cam1: { label: "Cam 1", person_alerts: true }
+  cam2: { label: "Cam 2", person_alerts: true }
+  cam3: { label: "Cam 3", person_alerts: true }
+  cam4: { label: "Cam 4", person_alerts: true }
+  cam5: { label: "Cam 5", person_alerts: true }
+  cam6: { label: "Cam 6", person_alerts: true }
+  cam7: { label: "Cam 7", person_alerts: true }
+  cam8: { label: "Cam 8", person_alerts: true }
+
+health:
+  down_after: 30        # s without a frame -> "camera down" (a go2rtc restart
+                        # reconnects everything in ~20s and must not alert)
+  recover_after: 10     # s of good condition before a recover event
+  black_ratio: 0.15     # luma below this fraction of the camera's baseline = black
+  black_min_base: 25    # only judge "black" if the camera normally has this much luma
+  covered_ratio: 0.12   # sharpness below this fraction of baseline = covered
+  covered_min_base: 25  # only judge "covered" if baseline sharpness is at least this
+  sustain: 10           # s a condition must hold before alerting
+  cooldown: 300         # s between repeat alerts of the same kind per camera
+
+night:
+  saturation_night: 10  # mean HSV saturation below this -> IR/night
+  saturation_day: 22    # above this -> day (hysteresis band between the two)
+  flip_grace: 20        # s after a day/night flip where health alerts are suppressed
