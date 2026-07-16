@@ -13,17 +13,20 @@ import cv2
 
 log = logging.getLogger(__name__)
 
-PERSON = 0  # COCO class id
+PERSON = 0      # COCO class ids
+MOTORCYCLE = 3
 
 
 class PersonDetector:
-    def __init__(self, cfg: dict, bus, readers: dict, monitor, base: Path):
+    def __init__(self, cfg: dict, bus, readers: dict, monitor, base: Path,
+                 rider=None):
         self.d = cfg["detection"]
         self.cams = [c for c, v in cfg["cameras"].items() if v.get("person_alerts")]
         self.labels = {c: v["label"] for c, v in cfg["cameras"].items()}
         self.bus = bus
         self.readers = readers
         self.monitor = monitor
+        self.rider = rider
         self.hits: dict[str, int] = {c: 0 for c in self.cams}
 
         from ultralytics import YOLO
@@ -48,15 +51,23 @@ class PersonDetector:
         if not batch:
             return
 
-        results = self.model(batch, classes=[PERSON], imgsz=self.d["imgsz"],
-                             conf=min(self.d["conf_day"], self.d["conf_night"]),
+        results = self.model(batch, classes=[PERSON, MOTORCYCLE],
+                             imgsz=self.d["imgsz"],
+                             conf=min(self.d["conf_day"], self.d["conf_night"],
+                                      0.35),
                              verbose=False)
 
         for cam, res in zip(order, results):
             st = self.monitor.states[cam]
             conf_needed = (self.d["conf_night"] if st.mode == "night"
                            else self.d["conf_day"])
-            boxes = [b for b in res.boxes if float(b.conf) >= conf_needed]
+            boxes = [b for b in res.boxes
+                     if int(b.cls) == PERSON and float(b.conf) >= conf_needed]
+            if self.rider:
+                try:
+                    self.rider.check(cam, boxes, res)
+                except Exception:
+                    log.exception("rider check failed")
             if not boxes:
                 self.hits[cam] = 0
                 continue

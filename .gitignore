@@ -11,6 +11,7 @@ alerts/.venv/
 __pycache__/
 alerts/snapshots/
 alerts/models/
+alerts/dataset/
 
 .DS_Store
 .claude/settings.local.json

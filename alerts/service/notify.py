@@ -12,12 +12,13 @@ log = logging.getLogger(__name__)
 
 _KIND_ICON = {
     "down": "📵", "black": "⬛", "covered": "🫣",
-    "person": "🚶", "no_helmet": "🪖",
+    "person": "🚶", "rider": "🛵", "no_helmet": "🪖",
 }
 
 
 class TelegramNotifier:
-    def __init__(self):
+    def __init__(self, mute_kinds=()):
+        self.mute_kinds = set(mute_kinds)
         self.token = os.environ.get("TELEGRAM_BOT_TOKEN", "")
         self.chat_id = os.environ.get("TELEGRAM_CHAT_ID", "")
         self.enabled = bool(self.token and self.chat_id)
@@ -29,7 +30,7 @@ class TelegramNotifier:
         threading.Thread(target=self._worker, name="telegram", daemon=True).start()
 
     def send(self, event, snapshot_dir):
-        if not self.enabled:
+        if not self.enabled or event.kind in self.mute_kinds:
             return
         try:
             self._q.put_nowait((event, snapshot_dir))

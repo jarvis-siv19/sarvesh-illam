@@ -455,7 +455,7 @@ window.addEventListener("resize", () => { if(!focusEl.classList.contains("show")
 /* ---- alerts service (optional — the page works fine without it) ---- */
 const ALERTS = (location.protocol.startsWith("http")
   ? `${location.protocol}//${location.hostname}` : "http://localhost") + ":8090";
-const KIND_ICON = {down:"📵", black:"⬛", covered:"🫣", person:"🚶", no_helmet:"🪖"};
+const KIND_ICON = {down:"📵", black:"⬛", covered:"🫣", person:"🚶", rider:"🛵", no_helmet:"🪖"};
 let lastEvId = Number(localStorage.getItem("lastEvId") || 0);
 
 function fmtWhen(ts){

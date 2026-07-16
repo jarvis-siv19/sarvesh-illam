@@ -38,6 +38,21 @@ detection:
   consecutive: 2        # passes a person must persist before alerting
   cooldown: 60          # s per camera between person alerts
 
+# Helmet-check scaffolding: detect riders (person on motorcycle/scooter) on
+# the parking camera and archive HD frames as future training data for a
+# helmet classifier fine-tuned on this camera. Rider events stay off Telegram
+# (see telegram.mute_kinds) — they exist for the dashboard + dataset for now.
+helmet:
+  camera: cam1
+  motorcycle_conf: 0.35
+  overlap: 0.15         # person-box overlap with motorcycle box (fraction of person area)
+  cooldown: 90          # s between rider events
+  dataset_dir: dataset/riders
+  dataset_keep: 500     # newest HD frames kept for training
+
+telegram:
+  mute_kinds: [rider]   # event kinds that never go to Telegram
+
 night:
   saturation_night: 10  # mean HSV saturation below this -> IR/night
   saturation_day: 22    # above this -> day (hysteresis band between the two)

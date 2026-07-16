@@ -34,7 +34,8 @@ def main():
     for r in readers.values():
         r.start()
 
-    bus = EventBus(snapshot_dir, cfg["snapshot_keep"], [TelegramNotifier()])
+    notifier = TelegramNotifier(cfg.get("telegram", {}).get("mute_kinds", ()))
+    bus = EventBus(snapshot_dir, cfg["snapshot_keep"], [notifier])
     monitor = HealthMonitor(cfg, bus, readers)
 
     def health_loop():
@@ -51,7 +52,9 @@ def main():
 
     def person_loop():
         from .person import PersonDetector
-        det = PersonDetector(cfg, bus, readers, monitor, BASE)
+        from .rider import RiderWatcher
+        det = PersonDetector(cfg, bus, readers, monitor, BASE,
+                             rider=RiderWatcher(cfg, bus, BASE))
         time.sleep(10)
         while True:
             t0 = time.time()

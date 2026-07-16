@@ -131,6 +131,16 @@ cd alerts && ./run.sh     # http://localhost:8090/api/events
 
 What it detects today:
 
+- **Person** — YOLO11n over every camera (~1.4 passes/s, all 8 batched in
+  ~50 ms). Two consecutive hits required, 60 s per-camera cooldown, snapshot
+  with boxes attached to the alert. Mute individual cameras with
+  `person_alerts: false`.
+- **Rider on two-wheeler** (parking camera) — person + motorcycle overlap.
+  Dashboard-only for now; each sighting archives an HD frame under
+  `alerts/dataset/riders/`. That archive is the training set for a helmet
+  classifier fine-tuned on this exact camera view — chosen over loading
+  third-party `.pt` weights, which are pickles that execute arbitrary code
+  on load and whose provenance we couldn't verify.
 - **Camera down** — no frames for 30 s (with recovery notice)
 - **Image black / camera covered** — brightness or sharpness collapsing
   against that camera's *own* per-mode baseline. Absolute thresholds don't
@@ -158,7 +168,9 @@ Without these the service still runs — events just stay local (log + dashboard
 
 ## Status
 
-Both DVRs live, 8 cameras on the LAN dashboard, camera-health alerts running.
+Both DVRs live, 8 cameras on the LAN dashboard; camera-health, person, and
+rider detection running.
 
-Planned: person detection on all cameras, no-helmet rider alert on the parking
-feed, Home Assistant integration, launchd agents for go2rtc + alerts.
+Planned: helmet classifier fine-tuned on the collected rider dataset (then
+no-helmet Telegram alerts), Home Assistant integration, launchd agents for
+go2rtc + alerts.
