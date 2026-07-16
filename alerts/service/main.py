@@ -49,6 +49,20 @@ def main():
 
     threading.Thread(target=health_loop, name="health", daemon=True).start()
 
+    def person_loop():
+        from .person import PersonDetector
+        det = PersonDetector(cfg, bus, readers, monitor, BASE)
+        time.sleep(10)
+        while True:
+            t0 = time.time()
+            try:
+                det.tick()
+            except Exception:
+                log.exception("person tick failed")
+            time.sleep(max(0.1, cfg["detection"]["interval"] - (time.time() - t0)))
+
+    threading.Thread(target=person_loop, name="person", daemon=True).start()
+
     app = build_app(bus, monitor, snapshot_dir)
     uvicorn.run(app, host="0.0.0.0", port=cfg["api_port"], log_level="warning")
 

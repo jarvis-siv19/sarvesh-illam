@@ -29,6 +29,15 @@ health:
   sustain: 10           # s a condition must hold before alerting
   cooldown: 300         # s between repeat alerts of the same kind per camera
 
+detection:
+  model: yolo11n.pt     # auto-downloaded to models/ on first run
+  imgsz: 352            # matches the 352x288 sub-streams
+  interval: 0.7         # s between detection passes (all cameras batched)
+  conf_day: 0.50
+  conf_night: 0.40      # IR frames are noisier; catch more, debounce filters
+  consecutive: 2        # passes a person must persist before alerting
+  cooldown: 60          # s per camera between person alerts
+
 night:
   saturation_night: 10  # mean HSV saturation below this -> IR/night
   saturation_day: 22    # above this -> day (hysteresis band between the two)
