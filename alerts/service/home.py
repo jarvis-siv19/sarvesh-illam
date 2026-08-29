@@ -74,6 +74,8 @@ class HomeAssistant:
                 payload["color_temp_kelvin"] = max(1500, min(6500, int(data["color_temp_kelvin"])))
             if "rgb_color" in data and isinstance(data["rgb_color"], list) and len(data["rgb_color"]) == 3:
                 payload["rgb_color"] = [max(0, min(255, int(v))) for v in data["rgb_color"]]
+            if "effect" in data and isinstance(data["effect"], str):
+                payload["effect"] = data["effect"][:100]
             service = "turn_on"
         else:
             service = action

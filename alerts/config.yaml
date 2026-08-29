@@ -65,7 +65,7 @@ home_assistant:
       room: Living room
       icon: "💡"
       type: light
-      read_only: true
+      read_only: false
     - id: wipro_plug
       entity_id: switch.10amp_smart_plug_socket_1
       name: Wipro 10A smart plug
@@ -96,6 +96,12 @@ home_assistant:
       room: Living room
       icon: "↯"
       type: sensor
+
+# One dashboard/app at a time can send microphone levels. The alerts service
+# owns the Home Assistant commands, and releases an abandoned source after 12s.
+music_reactive:
+  light_id: philips_bulb
+  source_timeout: 12
 
 night:
   saturation_night: 10  # mean HSV saturation below this -> IR/night

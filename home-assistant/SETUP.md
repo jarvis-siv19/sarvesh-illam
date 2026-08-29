@@ -53,7 +53,25 @@ Illam at port 1984.
    ```
 
 5. Refresh Sarvesh Illam and select **Home**. Device state and controls will
-   appear once the bridge can reach Home Assistant.
+   appear once the bridge can reach Home Assistant. WiZ lights expose power,
+   brightness, colour temperature, RGB colour, and available effects.
+
+## Music-reactive WiZ lighting
+
+The dashboard can make the configured WiZ light react to nearby music using a
+browser microphone. On the Home tab, select **Start music reactive** and allow
+microphone access. It does not use Spotify credentials or send audio off the
+LAN.
+
+One dashboard/app at a time owns the microphone source. Other clients can take
+over or stop it; an inactive source is released automatically after 12 seconds.
+Change the target dashboard entity in `alerts/config.yaml`:
+
+```yaml
+music_reactive:
+  light_id: philips_bulb
+  source_timeout: 12
+```
 
 ## Why not containerize every service now?
 

@@ -8,6 +8,20 @@
   const API = apiUrl.origin;
   const view = document.getElementById("homeView");
   let config = null;
+  let music = null;
+  let musicStream = null;
+  let audioContext = null;
+  let analyser = null;
+  let musicFrame = null;
+  let lastMusicSend = 0;
+  let smoothedLevel = 0;
+  let lastBass = 0;
+  let musicHue = 210;
+  const clientId = localStorage.getItem("sarveshMusicClient") ||
+    (crypto.randomUUID ? crypto.randomUUID() : `client-${Date.now()}-${Math.random()}`);
+  localStorage.setItem("sarveshMusicClient", clientId);
+  const clientName = /Android/i.test(navigator.userAgent) ? "Android app" :
+    /iPhone|iPad/i.test(navigator.userAgent) ? "iPhone or iPad" : "This dashboard";
 
   const esc = value => String(value).replace(/[&<>'"]/g, c =>
     ({"&":"&amp;","<":"&lt;",">":"&gt;","'":"&#39;","\"":"&quot;"})[c]);
@@ -29,23 +43,60 @@
   function render(states){
     const rooms = new Map();
     for (const device of states) rooms.set(device.room, [...(rooms.get(device.room) || []), device]);
-    view.innerHTML = `<div class="home-head"><div><h1>Home</h1><p>Control your connected devices locally.</p></div><button class="home-refresh" id="homeRefresh">↻ Refresh</button></div>` +
+    view.innerHTML = `<div class="home-head"><div><h1>Home</h1><p>Control your connected devices locally.</p></div><button class="home-refresh" id="homeRefresh">↻ Refresh</button></div>${musicCard()}` +
       [...rooms].map(([room, devices]) => `<section class="room"><h2>${esc(room)}</h2><div class="device-grid">${devices.map(card).join("")}</div></section>`).join("");
     document.getElementById("homeRefresh").onclick = load;
     view.querySelectorAll("[data-command]").forEach(button => button.onclick = () => command(button));
     view.querySelectorAll("input[data-brightness]").forEach(input => input.onchange = () =>
       command(input, "set", {brightness_pct: Number(input.value)}));
+    view.querySelectorAll("input[data-color-temp]").forEach(input => input.onchange = () =>
+      command(input, "set", {color_temp_kelvin: Number(input.value)}));
+    view.querySelectorAll("input[data-color]").forEach(input => input.onchange = () => {
+      const hex = input.value.slice(1);
+      command(input, "set", {rgb_color: [0, 2, 4].map(i => parseInt(hex.slice(i, i + 2), 16))});
+    });
+    view.querySelectorAll("select[data-effect]").forEach(select => select.onchange = () =>
+      command(select, "set", {effect: select.value}));
+    const musicButton = document.getElementById("musicReactive");
+    if (musicButton) musicButton.onclick = () => {
+      if (music?.active && music.owner?.id === clientId) stopMusic();
+      else startMusic(Boolean(music?.active));
+    };
+    const musicStop = document.getElementById("musicStop");
+    if (musicStop) musicStop.onclick = () => stopMusic(true);
+  }
+  function musicCard(){
+    const active = music?.active;
+    const mine = active && music.owner?.id === clientId;
+    const owner = music?.owner?.name || "another device";
+    const label = mine ? "Stop music reactive" : active ? "Take over audio" : "Start music reactive";
+    const detail = mine ? "Your microphone is driving the living-room light." : active ?
+      `Running from ${owner}. Taking over switches the audio source to this device.` :
+      "Use this device's microphone to make the light respond to any nearby music.";
+    return `<section class="music-card ${active ? "is-active" : ""}"><div class="music-icon">♫</div><div class="music-copy"><h2>Music reactive</h2><p>${esc(detail)}</p></div><div class="music-actions"><button id="musicReactive" class="music-toggle">${label}</button>${active && !mine ? `<button id="musicStop" class="music-stop">Stop</button>` : ""}</div></section>`;
   }
   function card(device){
     const online = !["unavailable", "unknown"].includes(device.state);
     const on = device.state === "on";
     const controllable = device.type !== "sensor" && !device.read_only;
     const brightness = Math.round((device.attributes?.brightness || 255) / 255 * 100);
+    const modes = device.attributes?.supported_color_modes || [];
+    const supportsTemp = modes.includes("color_temp");
+    const supportsColor = modes.some(mode => ["hs", "rgb", "rgbw", "rgbww"].includes(mode));
+    const minTemp = device.attributes?.min_color_temp_kelvin || 2200;
+    const maxTemp = device.attributes?.max_color_temp_kelvin || 6500;
+    const colorTemp = device.attributes?.color_temp_kelvin || Math.round((minTemp + maxTemp) / 2);
+    const rgb = device.attributes?.rgb_color || device.attributes?.rgbw_color || [255, 255, 255];
+    const color = "#" + rgb.slice(0, 3).map(value => Math.max(0, Math.min(255, Number(value))).toString(16).padStart(2, "0")).join("");
+    const effects = device.attributes?.effect_list || [];
     return `<article class="device-card ${on ? "is-on" : ""} ${online ? "" : "is-offline"}">
       <div class="device-top"><span class="device-icon">${esc(device.icon)}</span><span class="device-state">${esc(stateLabel(device))}</span></div>
       <h3>${esc(device.name)}</h3><p>${esc(device.read_only ? "State visible · control pending WiZ fix" : device.type === "light" ? "Smart light" : device.type === "sensor" ? "Live measurement" : "Smart plug")}</p>
       ${controllable ? `<div class="device-actions"><button class="device-toggle" data-command="${on ? "turn_off" : "turn_on"}" data-id="${esc(device.id)}" ${online ? "" : "disabled"}>${on ? "Turn off" : "Turn on"}</button></div>` : ""}
       ${device.type === "light" && controllable ? `<label class="brightness">Brightness <span>${brightness}%</span><input data-brightness data-id="${esc(device.id)}" type="range" min="1" max="100" value="${brightness}" ${online ? "" : "disabled"}></label>` : ""}
+      ${device.type === "light" && controllable && supportsTemp ? `<label class="brightness">Colour temperature <span>${colorTemp} K</span><input data-color-temp data-id="${esc(device.id)}" type="range" min="${minTemp}" max="${maxTemp}" value="${colorTemp}" ${online ? "" : "disabled"}></label>` : ""}
+      ${device.type === "light" && controllable && supportsColor ? `<label class="brightness">Colour <input data-color data-id="${esc(device.id)}" type="color" value="${color}" ${online ? "" : "disabled"}></label>` : ""}
+      ${device.type === "light" && controllable && effects.length ? `<label class="brightness">Effect <select data-effect data-id="${esc(device.id)}" ${online ? "" : "disabled"}>${effects.map(effect => `<option value="${esc(effect)}" ${effect === device.attributes?.effect ? "selected" : ""}>${esc(effect)}</option>`).join("")}</select></label>` : ""}
     </article>`;
   }
   async function command(control, action = control.dataset.command, data = {}){
@@ -59,17 +110,80 @@
     } catch (_) { alert("Device control failed. Check the Sarvesh Illam service and Home Assistant."); }
     finally { control.disabled = false; }
   }
+  async function musicRequest(path, body){
+    const r = await fetch(`${API}/api/home/music-reactive${path}`, {method: "POST", headers: {"Content-Type": "application/json"}, body: JSON.stringify(body)});
+    if (!r.ok) throw new Error((await r.json().catch(() => ({}))).detail || "Music reactive mode failed");
+    return r.json();
+  }
+  async function startMusic(takeOver){
+    try {
+      musicStream = await navigator.mediaDevices.getUserMedia({audio: {echoCancellation: false, noiseSuppression: false, autoGainControl: false}});
+      audioContext = new AudioContext();
+      analyser = audioContext.createAnalyser(); analyser.fftSize = 512; analyser.smoothingTimeConstant = 0.65;
+      audioContext.createMediaStreamSource(musicStream).connect(analyser);
+      music = await musicRequest("/claim", {client_id: clientId, name: clientName, take_over: takeOver});
+      animateMusic(); load();
+    } catch (error) {
+      stopLocalAudio();
+      alert(error.message || "Microphone access is required for music reactive mode.");
+      load();
+    }
+  }
+  function animateMusic(){
+    if (!analyser) return;
+    const bins = new Uint8Array(analyser.frequencyBinCount);
+    const tick = now => {
+      if (!analyser) return;
+      analyser.getByteFrequencyData(bins);
+      const bass = bins.slice(1, 12).reduce((sum, value) => sum + value, 0) / (11 * 255);
+      const energy = bins.slice(1, 80).reduce((sum, value) => sum + value, 0) / (79 * 255);
+      smoothedLevel = smoothedLevel * 0.72 + energy * 0.28;
+      const beat = bass > Math.max(0.19, lastBass * 1.32);
+      lastBass = lastBass * 0.84 + bass * 0.16;
+      if (beat) musicHue = (musicHue + 37) % 360;
+      if (now - lastMusicSend > 300) {
+        lastMusicSend = now;
+        musicRequest("/level", {client_id: clientId, level: smoothedLevel, beat, hue: musicHue})
+          .catch(() => { stopLocalAudio(); load(); });
+      }
+      musicFrame = requestAnimationFrame(tick);
+    };
+    musicFrame = requestAnimationFrame(tick);
+  }
+  function stopLocalAudio(){
+    if (musicFrame) cancelAnimationFrame(musicFrame);
+    musicFrame = null;
+    musicStream?.getTracks().forEach(track => track.stop());
+    musicStream = null; analyser = null;
+    audioContext?.close(); audioContext = null;
+  }
+  async function stopMusic(force = false){
+    stopLocalAudio();
+    try { music = await musicRequest("/stop", {client_id: clientId, take_over: force}); }
+    catch (error) { alert(error.message || "Could not stop music reactive mode."); }
+    load();
+  }
   async function load(){
     try {
       const c = await fetch(`${API}/api/home/config`, {cache:"no-store"});
       config = await c.json();
       if (!config.configured) return renderNotice("Set up your home", "Add the Home Assistant entity IDs in alerts/config.yaml.");
       if (!config.enabled) return renderNotice("Home Assistant is not connected", "Set HOME_ASSISTANT_URL and HOME_ASSISTANT_TOKEN in .env, then restart the alerts service.");
-      const r = await fetch(`${API}/api/home/states`, {cache:"no-store"});
+      const [r, musicResponse] = await Promise.all([fetch(`${API}/api/home/states`, {cache:"no-store"}), fetch(`${API}/api/home/music-reactive`, {cache:"no-store"})]);
       if (!r.ok) throw new Error();
+      music = musicResponse.ok ? await musicResponse.json() : null;
       render(await r.json());
     } catch (_) { renderNotice("Home unavailable", "Sarvesh Illam could not reach Home Assistant."); }
   }
+  window.addEventListener("pagehide", () => {
+    if (music?.active && music.owner?.id === clientId) {
+      navigator.sendBeacon(`${API}/api/home/music-reactive/stop`, new Blob([JSON.stringify({client_id: clientId})], {type: "application/json"}));
+    }
+    stopLocalAudio();
+  });
+  setInterval(() => {
+    if (view.classList.contains("show")) load();
+  }, 5000);
   window.SarveshHome = {load};
   load();
 })();

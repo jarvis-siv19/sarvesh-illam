@@ -51,7 +51,8 @@ cp .env.example .env   # fill in credentials and DVR addresses
 
 Open `http://<LAN_IP>:1984/` from any device on the LAN — desktop, phone, or TV
 browser. The Security tab holds live cameras and alerts; the Home tab controls
-the connected light and plug. Phones get a scrollable column layout with swipe
+the connected light and plug, including WiZ colour, temperature, and effects.
+Phones get a scrollable column layout with swipe
 navigation in the focus view, and "Add to Home Screen" installs it as a
 full-screen app. The page also still works opened directly as a `file://` on
 the host machine.
@@ -185,10 +186,26 @@ HOME_ASSISTANT_TOKEN=replace-with-a-long-lived-token
 ```
 
 Restart `alerts/run.sh`. The Home tab will then expose only those configured
-devices. Philips Smart Wi-Fi bulbs sold in India generally use WiZ and should
+devices. WiZ lights support on/off, brightness, colour temperature, RGB colour,
+and their available effects; switches and configured sensor readings appear in
+the same room card. Philips Smart Wi-Fi bulbs sold in India generally use WiZ and should
 be enabled for local communication in the WiZ app. Verify the exact Wipro plug
 model/account pairing before enabling it; some models require the Tuya cloud
 integration.
+
+### Music-reactive lighting
+
+The Home tab has a **Music reactive** control that uses the microphone of one
+dashboard or app to drive the configured WiZ light. It works with any nearby
+audio source and does not need Spotify credentials. The browser asks for
+microphone permission only while the mode is running; no audio is uploaded or
+stored.
+
+Only one device can be the source at a time. Other open dashboards show the
+current source and can stop it or take over. The alerts service owns all Home
+Assistant writes and automatically releases a source that stops checking in
+after 12 seconds. Configure the controlled dashboard light in
+`alerts/config.yaml` under `music_reactive.light_id`.
 
 `home-assistant/automations.yaml` is an opt-in, conservative example that turns
 on a light after a night-time person alert. It never controls the smart plug.
@@ -208,8 +225,10 @@ the LAN dashboard address.
 ## Status
 
 Both DVRs live, 8 cameras on the LAN dashboard; camera-health, person, and
-rider detection running.
+rider detection running. The Home tab controls the WiZ bulb, Wipro plug, and
+live plug measurements through Home Assistant, with shared music-reactive
+lighting available from the dashboard.
 
 Planned: helmet classifier fine-tuned on the collected rider dataset (then
-no-helmet Telegram alerts), Home Assistant integration, launchd agents for
-go2rtc + alerts.
+no-helmet Telegram alerts), Android microphone permission for music-reactive
+lighting, launchd agents for go2rtc + alerts.
