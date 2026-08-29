@@ -193,6 +193,11 @@ integration.
 `home-assistant/automations.yaml` is an opt-in, conservative example that turns
 on a light after a night-time person alert. It never controls the smart plug.
 
+Run the local Home Assistant server and connect the two devices using the full
+guide in [`home-assistant/SETUP.md`](home-assistant/SETUP.md). It runs in Docker
+but Sarvesh Illam remains the daily dashboard; Home Assistant is the local
+automation engine behind it.
+
 ## Android APK
 
 The `android/` Capacitor project packages the same dashboard. See

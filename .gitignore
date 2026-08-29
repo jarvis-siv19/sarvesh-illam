@@ -14,6 +14,7 @@ alerts/models/
 alerts/dataset/
 node_modules/
 .tools/
+home-assistant/config/
 android/.gradle/
 android/build/
 android/app/build/
