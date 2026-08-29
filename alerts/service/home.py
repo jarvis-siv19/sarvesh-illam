@@ -27,7 +27,7 @@ class HomeAssistant:
     def public_config(self) -> dict[str, Any]:
         return {"enabled": self.enabled, "configured": bool(self.entities),
                 "entities": [{k: v for k, v in item.items()
-                              if k in {"id", "entity_id", "name", "room", "icon", "type"}}
+                              if k in {"id", "entity_id", "name", "room", "icon", "type", "read_only"}}
                              for item in self.entities.values()]}
 
     def _client(self):
@@ -48,6 +48,7 @@ class HomeAssistant:
                                "room": item.get("room", "Home"),
                                "icon": item.get("icon", "⌂"),
                                "type": item.get("type", item["entity_id"].split(".")[0]),
+                               "read_only": item.get("read_only", False),
                                "state": raw.get("state", "unknown"),
                                "attributes": raw.get("attributes", {})})
             return result

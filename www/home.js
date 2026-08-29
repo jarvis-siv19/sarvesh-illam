@@ -39,12 +39,13 @@
   function card(device){
     const online = !["unavailable", "unknown"].includes(device.state);
     const on = device.state === "on";
+    const controllable = device.type !== "sensor" && !device.read_only;
     const brightness = Math.round((device.attributes?.brightness || 255) / 255 * 100);
     return `<article class="device-card ${on ? "is-on" : ""} ${online ? "" : "is-offline"}">
       <div class="device-top"><span class="device-icon">${esc(device.icon)}</span><span class="device-state">${esc(stateLabel(device))}</span></div>
-      <h3>${esc(device.name)}</h3><p>${esc(device.type === "light" ? "Smart light" : device.type === "sensor" ? "Live measurement" : "Smart plug")}</p>
-      ${device.type === "sensor" ? "" : `<div class="device-actions"><button class="device-toggle" data-command="${on ? "turn_off" : "turn_on"}" data-id="${esc(device.id)}" ${online ? "" : "disabled"}>${on ? "Turn off" : "Turn on"}</button></div>`}
-      ${device.type === "light" ? `<label class="brightness">Brightness <span>${brightness}%</span><input data-brightness data-id="${esc(device.id)}" type="range" min="1" max="100" value="${brightness}" ${online ? "" : "disabled"}></label>` : ""}
+      <h3>${esc(device.name)}</h3><p>${esc(device.read_only ? "State visible · control pending WiZ fix" : device.type === "light" ? "Smart light" : device.type === "sensor" ? "Live measurement" : "Smart plug")}</p>
+      ${controllable ? `<div class="device-actions"><button class="device-toggle" data-command="${on ? "turn_off" : "turn_on"}" data-id="${esc(device.id)}" ${online ? "" : "disabled"}>${on ? "Turn off" : "Turn on"}</button></div>` : ""}
+      ${device.type === "light" && controllable ? `<label class="brightness">Brightness <span>${brightness}%</span><input data-brightness data-id="${esc(device.id)}" type="range" min="1" max="100" value="${brightness}" ${online ? "" : "disabled"}></label>` : ""}
     </article>`;
   }
   async function command(control, action = control.dataset.command, data = {}){

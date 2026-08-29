@@ -60,11 +60,12 @@ home_assistant:
   publish_camera_events: false  # enable only after reviewing automations.yaml
   entities:
     - id: philips_bulb
-      entity_id: light.philips_bulb
+      entity_id: light.wiz_rgbw_tunable_d6942a
       name: Philips smart bulb
       room: Living room
       icon: "💡"
       type: light
+      read_only: true
     - id: wipro_plug
       entity_id: switch.10amp_smart_plug_socket_1
       name: Wipro 10A smart plug
