@@ -53,6 +53,25 @@ helmet:
 telegram:
   mute_kinds: [rider]   # event kinds that never go to Telegram
 
+# Sarvesh Illam Home tab. HOME_ASSISTANT_URL and HOME_ASSISTANT_TOKEN live in
+# ../.env; browser clients never see that token. Replace entity_id values after
+# connecting the real devices in Home Assistant.
+home_assistant:
+  publish_camera_events: false  # enable only after reviewing automations.yaml
+  entities:
+    - id: philips_bulb
+      entity_id: light.philips_bulb
+      name: Philips smart bulb
+      room: Living room
+      icon: "💡"
+      type: light
+    - id: wipro_plug
+      entity_id: switch.wipro_smart_plug
+      name: Wipro smart plug
+      room: Living room
+      icon: "🔌"
+      type: switch
+
 night:
   saturation_night: 10  # mean HSV saturation below this -> IR/night
   saturation_day: 22    # above this -> day (hysteresis band between the two)

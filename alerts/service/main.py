@@ -10,6 +10,8 @@ import yaml
 from .api import build_app
 from .events import EventBus
 from .health import HealthMonitor
+from .home import HomeAssistant
+from .home_notify import HomeAssistantNotifier
 from .notify import TelegramNotifier
 from .reader import CameraReader
 
@@ -34,8 +36,9 @@ def main():
     for r in readers.values():
         r.start()
 
+    home = HomeAssistant(cfg.get("home_assistant", {}))
     notifier = TelegramNotifier(cfg.get("telegram", {}).get("mute_kinds", ()))
-    bus = EventBus(snapshot_dir, cfg["snapshot_keep"], [notifier])
+    bus = EventBus(snapshot_dir, cfg["snapshot_keep"], [notifier, HomeAssistantNotifier(home)])
     monitor = HealthMonitor(cfg, bus, readers)
 
     def health_loop():
@@ -66,7 +69,7 @@ def main():
 
     threading.Thread(target=person_loop, name="person", daemon=True).start()
 
-    app = build_app(bus, monitor, snapshot_dir)
+    app = build_app(bus, monitor, snapshot_dir, home)
     uvicorn.run(app, host="0.0.0.0", port=cfg["api_port"], log_level="warning")
 
 

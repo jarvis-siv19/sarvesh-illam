@@ -1,0 +1,28 @@
+# Import this package into Home Assistant only after replacing the entity IDs.
+# It deliberately affects a light, never a plug or other high-load appliance.
+# Set alerts/config.yaml > home_assistant.publish_camera_events: true afterwards.
+
+- id: sarvesh_illam_entry_light_on_person
+  alias: Sarvesh Illam - entry light after person detection
+  mode: single
+  triggers:
+    - trigger: event
+      event_type: sarvesh_illam_camera_alert
+      event_data:
+        camera: cam1
+        kind: person
+        state: alert
+  conditions:
+    - condition: sun
+      after: sunset
+      before: sunrise
+  actions:
+    - action: light.turn_on
+      target:
+        entity_id: light.philips_bulb
+      data:
+        brightness_pct: 65
+    - delay: "00:03:00"
+    - action: light.turn_off
+      target:
+        entity_id: light.philips_bulb

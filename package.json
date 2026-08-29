@@ -1,0 +1,17 @@
+{
+  "name": "sarvesh-illam",
+  "private": true,
+  "version": "0.1.0",
+  "description": "Sarvesh Illam local CCTV and smart-home dashboard",
+  "scripts": {
+    "android:add": "cap add android",
+    "android:sync": "cap sync android",
+    "android:open": "cap open android"
+  },
+  "devDependencies": {
+    "@capacitor/android": "^7.0.0",
+    "@capacitor/cli": "^7.0.0",
+    "@capacitor/core": "^7.0.0",
+    "typescript": "5.7.3"
+  }
+}

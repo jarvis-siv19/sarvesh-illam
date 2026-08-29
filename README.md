@@ -1,8 +1,9 @@
-# CCTV
+# Sarvesh Illam
 
-A local dashboard for two CP Plus DVRs (Dahua OEM), 4 cameras each. Pulls RTSP
-off the DVRs with [go2rtc](https://github.com/AlexxIT/go2rtc) and restreams to
-the browser over WebRTC/MSE — no cloud, no vendor app.
+A local home dashboard for two CP Plus DVRs (Dahua OEM), 4 cameras each, and
+Home Assistant-connected devices. It pulls RTSP off the DVRs with
+[go2rtc](https://github.com/AlexxIT/go2rtc) and restreams to the browser over
+WebRTC/MSE — no cloud or vendor app required for camera viewing.
 
 The stock mobile app (gCMOB) only reaches the cameras through a proprietary P2P
 relay, which is unusable for desktop viewing or automation. Local RTSP is the
@@ -13,8 +14,11 @@ way in.
 | File | Purpose |
 | --- | --- |
 | `go2rtc.yaml` | Stream definitions. Credentials come from the environment. |
-| `www/` | Dashboard, served by go2rtc itself at `http://<LAN_IP>:1984/`. |
+| `www/` | Sarvesh Illam dashboard, served by go2rtc at `http://<LAN_IP>:1984/`. |
 | `run.sh` | Loads `.env`, starts go2rtc. |
+| `alerts/` | Camera alerts plus the Home Assistant control bridge. |
+| `home-assistant/` | Safe, optional camera-triggered-light automation template. |
+| `android/` | Capacitor Android project for the Sarvesh Illam APK. |
 | `.env.example` | Template for `.env`. |
 | `cctv.m3u` | Jellyfin Live TV playlist (optional). |
 
@@ -46,9 +50,11 @@ cp .env.example .env   # fill in credentials and DVR addresses
 ```
 
 Open `http://<LAN_IP>:1984/` from any device on the LAN — desktop, phone, or TV
-browser. Phones get a scrollable column layout with swipe navigation in the
-focus view, and "Add to Home Screen" installs it as a full-screen app. The page
-also still works opened directly as a `file://` on the host machine.
+browser. The Security tab holds live cameras and alerts; the Home tab controls
+the connected light and plug. Phones get a scrollable column layout with swipe
+navigation in the focus view, and "Add to Home Screen" installs it as a
+full-screen app. The page also still works opened directly as a `file://` on
+the host machine.
 
 Give the host machine a fixed address (DHCP reservation on the router, or a
 manual IP) — it's baked into `LAN_IP` and into every device's bookmark.
@@ -165,6 +171,34 @@ TELEGRAM_CHAT_ID=123456789
 ```
 
 Without these the service still runs — events just stay local (log + dashboard).
+
+## Home Assistant / smart home
+
+Sarvesh Illam keeps Home Assistant's long-lived token on the local alerts
+service; it is never placed in the dashboard or Android app. First connect the
+Philips bulb and Wipro plug in Home Assistant, then set their entity IDs in
+`alerts/config.yaml` and add the Home Assistant URL/token to `.env`:
+
+```sh
+HOME_ASSISTANT_URL=http://homeassistant.local:8123
+HOME_ASSISTANT_TOKEN=replace-with-a-long-lived-token
+```
+
+Restart `alerts/run.sh`. The Home tab will then expose only those configured
+devices. Philips Smart Wi-Fi bulbs sold in India generally use WiZ and should
+be enabled for local communication in the WiZ app. Verify the exact Wipro plug
+model/account pairing before enabling it; some models require the Tuya cloud
+integration.
+
+`home-assistant/automations.yaml` is an opt-in, conservative example that turns
+on a light after a night-time person alert. It never controls the smart plug.
+
+## Android APK
+
+The `android/` Capacitor project packages the same dashboard. See
+[`android/README.md`](android/README.md) to build and sign a release APK.
+On first launch, tap the server address beside the Sarvesh Illam title and set
+the LAN dashboard address.
 
 ## Status
 

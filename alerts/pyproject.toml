@@ -1,7 +1,7 @@
 [project]
 name = "cctv-alerts"
 version = "0.1.0"
-description = "Camera health + vision alerts for the CCTV dashboard"
+description = "Sarvesh Illam camera health, vision alerts, and home controls"
 requires-python = "==3.12.*"
 dependencies = [
     "opencv-python-headless>=4.10",
