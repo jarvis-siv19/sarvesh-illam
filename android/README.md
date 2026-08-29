@@ -4,6 +4,10 @@ This is a Capacitor shell around the same `www/` dashboard used on the LAN.
 On first launch, tap the server address beside **Sarvesh Illam** and enter the
 dashboard address, for example `http://192.168.0.4:1984`.
 
+The Home tab's **Music reactive** mode requests microphone access only when you
+start it. Grant Android's microphone permission when prompted; declining it
+leaves all camera and normal smart-home controls available.
+
 ## Build a release APK
 
 Install Android Studio with Android SDK Platform 35. This repository's build
