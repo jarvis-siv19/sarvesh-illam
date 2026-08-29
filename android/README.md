@@ -6,16 +6,18 @@ dashboard address, for example `http://192.168.0.4:1984`.
 
 ## Build a release APK
 
-Install Android Studio with Android SDK Platform 35 and JDK 17 or newer. Then:
+Install Android Studio with Android SDK Platform 35. This repository's build
+script uses `.tools/jdk-17` automatically when it exists, so a system JDK is
+not required. Then:
 
 ```sh
 npm install
-npm run android:sync
-cd android
-./gradlew assembleRelease
+./scripts/build-android.sh
 ```
 
-The unsigned APK is written to `app/build/outputs/apk/release/`. Sign it with a
+The debug APK is written to `android/app/build/outputs/apk/debug/`. For a
+release APK, run `./gradlew assembleRelease` from `android/` using the same
+`JAVA_HOME`. Sign it with a
 private keystore before installing/distributing it. Keep the same keystore for
 all future updates or Android will reject updates to the app.
 
