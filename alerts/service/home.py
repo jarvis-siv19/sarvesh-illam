@@ -57,6 +57,8 @@ class HomeAssistant:
         if not item:
             raise KeyError(item_id)
         domain = item["entity_id"].split(".", 1)[0]
+        if domain not in {"light", "switch"}:
+            raise ValueError("this entity is read-only")
         allowed = {"turn_on", "turn_off"}
         if domain == "light":
             allowed.add("set")

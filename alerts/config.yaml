@@ -66,11 +66,35 @@ home_assistant:
       icon: "💡"
       type: light
     - id: wipro_plug
-      entity_id: switch.wipro_smart_plug
-      name: Wipro smart plug
+      entity_id: switch.10amp_smart_plug_socket_1
+      name: Wipro 10A smart plug
       room: Living room
       icon: "🔌"
       type: switch
+    - id: wipro_power
+      entity_id: sensor.10amp_smart_plug_power
+      name: Live power
+      room: Living room
+      icon: "⚡"
+      type: sensor
+    - id: wipro_energy
+      entity_id: sensor.10amp_smart_plug_total_energy
+      name: Total energy
+      room: Living room
+      icon: "◒"
+      type: sensor
+    - id: wipro_voltage
+      entity_id: sensor.10amp_smart_plug_voltage
+      name: Voltage
+      room: Living room
+      icon: "⌁"
+      type: sensor
+    - id: wipro_current
+      entity_id: sensor.10amp_smart_plug_current
+      name: Current
+      room: Living room
+      icon: "↯"
+      type: sensor
 
 night:
   saturation_night: 10  # mean HSV saturation below this -> IR/night

@@ -15,6 +15,10 @@
     view.innerHTML = `<div class="home-empty"><div class="home-empty-icon">⌂</div><h2>${esc(title)}</h2><p>${esc(text)}</p></div>`;
   }
   function stateLabel(device){
+    if (device.type === "sensor") {
+      const unit = device.attributes?.unit_of_measurement || "";
+      return `${device.state} ${unit}`.trim();
+    }
     if (device.state === "unavailable" || device.state === "unknown") return "Offline";
     if (device.state === "on") {
       const watts = device.attributes?.power;
@@ -38,8 +42,8 @@
     const brightness = Math.round((device.attributes?.brightness || 255) / 255 * 100);
     return `<article class="device-card ${on ? "is-on" : ""} ${online ? "" : "is-offline"}">
       <div class="device-top"><span class="device-icon">${esc(device.icon)}</span><span class="device-state">${esc(stateLabel(device))}</span></div>
-      <h3>${esc(device.name)}</h3><p>${esc(device.type === "light" ? "Smart light" : "Smart plug")}</p>
-      <div class="device-actions"><button class="device-toggle" data-command="${on ? "turn_off" : "turn_on"}" data-id="${esc(device.id)}" ${online ? "" : "disabled"}>${on ? "Turn off" : "Turn on"}</button></div>
+      <h3>${esc(device.name)}</h3><p>${esc(device.type === "light" ? "Smart light" : device.type === "sensor" ? "Live measurement" : "Smart plug")}</p>
+      ${device.type === "sensor" ? "" : `<div class="device-actions"><button class="device-toggle" data-command="${on ? "turn_off" : "turn_on"}" data-id="${esc(device.id)}" ${online ? "" : "disabled"}>${on ? "Turn off" : "Turn on"}</button></div>`}
       ${device.type === "light" ? `<label class="brightness">Brightness <span>${brightness}%</span><input data-brightness data-id="${esc(device.id)}" type="range" min="1" max="100" value="${brightness}" ${online ? "" : "disabled"}></label>` : ""}
     </article>`;
   }
