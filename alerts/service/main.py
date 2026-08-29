@@ -37,7 +37,7 @@ def main():
     for r in readers.values():
         r.start()
 
-    home = HomeAssistant(cfg.get("home_assistant", {}))
+    home = HomeAssistant(cfg.get("home_assistant", {}), BASE / "home-layout.json")
     music = MusicReactive(home, cfg.get("music_reactive", {}))
     notifier = TelegramNotifier(cfg.get("telegram", {}).get("mute_kinds", ()))
     bus = EventBus(snapshot_dir, cfg["snapshot_keep"], [notifier, HomeAssistantNotifier(home)])

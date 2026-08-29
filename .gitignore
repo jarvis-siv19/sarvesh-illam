@@ -12,6 +12,7 @@ __pycache__/
 alerts/snapshots/
 alerts/models/
 alerts/dataset/
+alerts/home-layout.json
 node_modules/
 .tools/
 home-assistant/config/

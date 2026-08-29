@@ -59,6 +59,9 @@ the host machine.
 
 Give the host machine a fixed address (DHCP reservation on the router, or a
 manual IP) — it's baked into `LAN_IP` and into every device's bookmark.
+If another LAN device cannot open the dashboard, allow incoming connections for
+go2rtc (TCP port 1984) in the Mac firewall; never forward this port to the
+internet.
 
 ## How it works
 
@@ -192,6 +195,13 @@ the same room card. Philips Smart Wi-Fi bulbs sold in India generally use WiZ an
 be enabled for local communication in the WiZ app. Verify the exact Wipro plug
 model/account pairing before enabling it; some models require the Tuya cloud
 integration.
+
+Use **+ Room** and **+ Device** on the Home tab to organise the dashboard
+without editing YAML. Each room has a **Turn off room** action for its configured
+lights and switches, while each device can be renamed, moved, re-iconed, or
+removed from the dashboard (removing it never deletes it from Home Assistant).
+These shared layout choices are saved locally in `alerts/home-layout.json`,
+which is intentionally untracked because it is household-specific.
 
 ### Music-reactive lighting
 

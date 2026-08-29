@@ -42,10 +42,13 @@
   }
   function render(states){
     const rooms = new Map();
+    for (const room of config?.rooms || []) rooms.set(room, []);
     for (const device of states) rooms.set(device.room, [...(rooms.get(device.room) || []), device]);
-    view.innerHTML = `<div class="home-head"><div><h1>Home</h1><p>Control your connected devices locally.</p></div><button class="home-refresh" id="homeRefresh">↻ Refresh</button></div>${musicCard()}` +
-      [...rooms].map(([room, devices]) => `<section class="room"><h2>${esc(room)}</h2><div class="device-grid">${devices.map(card).join("")}</div></section>`).join("");
+    view.innerHTML = `<div class="home-head"><div><h1>Home</h1><p>Control your connected devices locally.</p></div><div class="home-actions"><button class="home-refresh" id="homeAddRoom">＋ Room</button><button class="home-refresh" id="homeAddDevice">＋ Device</button><button class="home-refresh" id="homeRefresh">↻ Refresh</button></div></div>${musicCard()}` +
+      [...rooms].map(([room, devices]) => `<section class="room"><div class="room-head"><h2>${esc(room)}</h2><div><button class="room-button" data-room-edit="${esc(room)}">Edit</button><button class="room-button room-off" data-room-off="${esc(room)}" ${devices.some(device => !device.read_only && ["light", "switch"].includes(device.type)) ? "" : "disabled"}>Turn off room</button></div></div><div class="device-grid">${devices.map(card).join("") || `<p class="room-empty">No devices in this room yet.</p>`}</div></section>`).join("");
     document.getElementById("homeRefresh").onclick = load;
+    document.getElementById("homeAddRoom").onclick = addRoom;
+    document.getElementById("homeAddDevice").onclick = addDevice;
     view.querySelectorAll("[data-command]").forEach(button => button.onclick = () => command(button));
     view.querySelectorAll("input[data-brightness]").forEach(input => input.onchange = () =>
       command(input, "set", {brightness_pct: Number(input.value)}));
@@ -64,6 +67,10 @@
     };
     const musicStop = document.getElementById("musicStop");
     if (musicStop) musicStop.onclick = () => stopMusic(true);
+    view.querySelectorAll("[data-room-off]").forEach(button => button.onclick = () => turnOffRoom(button));
+    view.querySelectorAll("[data-room-edit]").forEach(button => button.onclick = () => renameRoom(button.dataset.roomEdit));
+    view.querySelectorAll("[data-edit-device]").forEach(button => button.onclick = () => editDevice(button.dataset.editDevice));
+    view.querySelectorAll("[data-remove-device]").forEach(button => button.onclick = () => removeDevice(button.dataset.removeDevice));
   }
   function musicCard(){
     const active = music?.active;
@@ -97,6 +104,7 @@
       ${device.type === "light" && controllable && supportsTemp ? `<label class="brightness">Colour temperature <span>${colorTemp} K</span><input data-color-temp data-id="${esc(device.id)}" type="range" min="${minTemp}" max="${maxTemp}" value="${colorTemp}" ${online ? "" : "disabled"}></label>` : ""}
       ${device.type === "light" && controllable && supportsColor ? `<label class="brightness">Colour <input data-color data-id="${esc(device.id)}" type="color" value="${color}" ${online ? "" : "disabled"}></label>` : ""}
       ${device.type === "light" && controllable && effects.length ? `<label class="brightness">Effect <select data-effect data-id="${esc(device.id)}" ${online ? "" : "disabled"}>${effects.map(effect => `<option value="${esc(effect)}" ${effect === device.attributes?.effect ? "selected" : ""}>${esc(effect)}</option>`).join("")}</select></label>` : ""}
+      <div class="device-manage"><button data-edit-device="${esc(device.id)}">Edit</button><button data-remove-device="${esc(device.id)}">Remove</button></div>
     </article>`;
   }
   async function command(control, action = control.dataset.command, data = {}){
@@ -109,6 +117,48 @@
       setTimeout(load, 350);
     } catch (_) { alert("Device control failed. Check the Sarvesh Illam service and Home Assistant."); }
     finally { control.disabled = false; }
+  }
+  async function manage(path, method, body){
+    const options = {method, headers: {"Content-Type": "application/json"}};
+    if (body) options.body = JSON.stringify(body);
+    const r = await fetch(`${API}/api/home${path}`, options);
+    if (!r.ok) throw new Error((await r.json().catch(() => ({}))).detail || "Could not save dashboard changes");
+    return r.json();
+  }
+  async function addRoom(){
+    const name = prompt("Room name"); if (!name?.trim()) return;
+    try { await manage("/rooms", "POST", {name}); await load(); } catch (error) { alert(error.message); }
+  }
+  async function renameRoom(room){
+    const name = prompt("Rename room", room); if (!name?.trim() || name === room) return;
+    try { await manage(`/rooms/${encodeURIComponent(room)}`, "PATCH", {name}); await load(); } catch (error) { alert(error.message); }
+  }
+  async function addDevice(){
+    const entity_id = prompt("Home Assistant entity ID (for example light.living_room_lamp)");
+    if (!entity_id?.trim()) return;
+    const name = prompt("Display name", entity_id) || entity_id;
+    const room = prompt("Room", config?.rooms?.[0] || "Home") || "Home";
+    const icon = prompt("Icon", entity_id.startsWith("light.") ? "💡" : entity_id.startsWith("switch.") ? "🔌" : "◌") || "⌂";
+    try { await manage("/entities", "POST", {entity_id, name, room, icon}); await load(); } catch (error) { alert(error.message); }
+  }
+  async function editDevice(id){
+    const device = (await fetch(`${API}/api/home/states`).then(r => r.json())).find(item => item.id === id);
+    if (!device) return;
+    const name = prompt("Display name", device.name); if (!name?.trim()) return;
+    const room = prompt("Room", device.room); if (!room?.trim()) return;
+    const icon = prompt("Icon", device.icon); if (!icon?.trim()) return;
+    try { await manage(`/entities/${encodeURIComponent(id)}`, "PATCH", {name, room, icon}); await load(); } catch (error) { alert(error.message); }
+  }
+  async function removeDevice(id){
+    if (!confirm("Remove this device from the dashboard? It will stay in Home Assistant.")) return;
+    try { await manage(`/entities/${encodeURIComponent(id)}`, "DELETE"); await load(); } catch (error) { alert(error.message); }
+  }
+  async function turnOffRoom(button){
+    const room = button.dataset.roomOff;
+    if (!confirm(`Turn off all controllable devices in ${room}?`)) return;
+    button.disabled = true;
+    try { await manage(`/rooms/${encodeURIComponent(room)}/turn_off`, "POST"); setTimeout(load, 400); }
+    catch (error) { alert(error.message); button.disabled = false; }
   }
   async function musicRequest(path, body){
     const r = await fetch(`${API}/api/home/music-reactive${path}`, {method: "POST", headers: {"Content-Type": "application/json"}, body: JSON.stringify(body)});

@@ -13,6 +13,23 @@ class HomeCommand(BaseModel):
     data: dict = Field(default_factory=dict)
 
 
+class HomeEntityCreate(BaseModel):
+    entity_id: str
+    name: str | None = None
+    room: str | None = None
+    icon: str | None = None
+
+
+class HomeEntityEdit(BaseModel):
+    name: str | None = None
+    room: str | None = None
+    icon: str | None = None
+
+
+class RoomName(BaseModel):
+    name: str = Field(min_length=1, max_length=60)
+
+
 class MusicClaim(BaseModel):
     client_id: str = Field(min_length=8, max_length=120)
     name: str = Field(default="This device", max_length=60)
@@ -72,6 +89,60 @@ def build_app(bus, monitor, snapshot_dir: Path, home=None, music=None) -> FastAP
             raise HTTPException(status_code=400, detail=str(exc)) from exc
         except httpx.HTTPError as exc:
             raise HTTPException(status_code=502, detail="Home Assistant command failed") from exc
+
+    @app.post("/api/home/entities")
+    def home_add_entity(entity: HomeEntityCreate):
+        if not home or not home.enabled:
+            raise HTTPException(status_code=503, detail="Home Assistant is not configured")
+        try:
+            return home.add_entity(entity.model_dump())
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    @app.patch("/api/home/entities/{item_id}")
+    def home_edit_entity(item_id: str, entity: HomeEntityEdit):
+        if not home:
+            raise HTTPException(status_code=503, detail="Home Assistant is not configured")
+        try:
+            return home.update_entity(item_id, entity.model_dump(exclude_unset=True))
+        except KeyError as exc:
+            raise HTTPException(status_code=404, detail="Unknown device") from exc
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    @app.delete("/api/home/entities/{item_id}")
+    def home_remove_entity(item_id: str):
+        if not home:
+            raise HTTPException(status_code=503, detail="Home Assistant is not configured")
+        try:
+            home.remove_entity(item_id)
+            return {"ok": True}
+        except KeyError as exc:
+            raise HTTPException(status_code=404, detail="Unknown device") from exc
+
+    @app.post("/api/home/rooms")
+    def home_add_room(room: RoomName):
+        if not home:
+            raise HTTPException(status_code=503, detail="Home Assistant is not configured")
+        try:
+            return {"rooms": home.add_room(room.name)}
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    @app.patch("/api/home/rooms/{room}")
+    def home_rename_room(room: str, payload: RoomName):
+        if not home:
+            raise HTTPException(status_code=503, detail="Home Assistant is not configured")
+        try:
+            return {"rooms": home.rename_room(room, payload.name)}
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    @app.post("/api/home/rooms/{room}/turn_off")
+    def home_turn_off_room(room: str):
+        if not home or not home.enabled:
+            raise HTTPException(status_code=503, detail="Home Assistant is not configured")
+        return home.turn_off_room(room)
 
     @app.get("/api/home/music-reactive")
     def music_status():
