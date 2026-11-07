@@ -74,8 +74,8 @@ def build_app(bus, monitor, snapshot_dir: Path, home=None, music=None) -> FastAP
             raise HTTPException(status_code=503, detail="Home Assistant is not configured")
         try:
             return home.states()
-        except httpx.HTTPError as exc:
-            raise HTTPException(status_code=502, detail="Home Assistant is unreachable") from exc
+        except (httpx.HTTPError, RuntimeError) as exc:
+            raise HTTPException(status_code=502, detail="A home device provider is unreachable") from exc
 
     @app.post("/api/home/entities/{item_id}")
     def home_command(item_id: str, command: HomeCommand):
@@ -87,8 +87,8 @@ def build_app(bus, monitor, snapshot_dir: Path, home=None, music=None) -> FastAP
             raise HTTPException(status_code=404, detail="Unknown device") from exc
         except (ValueError, TypeError) as exc:
             raise HTTPException(status_code=400, detail=str(exc)) from exc
-        except httpx.HTTPError as exc:
-            raise HTTPException(status_code=502, detail="Home Assistant command failed") from exc
+        except (httpx.HTTPError, RuntimeError) as exc:
+            raise HTTPException(status_code=502, detail="Device command failed") from exc
 
     @app.post("/api/home/entities")
     def home_add_entity(entity: HomeEntityCreate):

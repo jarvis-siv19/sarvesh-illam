@@ -9,7 +9,7 @@ import json
 import re
 import threading
 from pathlib import Path
-from typing import Any
+from typing import Any, Iterable
 
 import httpx
 
@@ -17,14 +17,23 @@ log = logging.getLogger(__name__)
 
 
 class HomeAssistant:
-    def __init__(self, config: dict[str, Any], layout_path: Path | None = None):
+    def __init__(self, config: dict[str, Any], layout_path: Path | None = None,
+                 providers: Iterable[Any] = ()):
         self.config = config or {}
         self.url = os.environ.get("HOME_ASSISTANT_URL", "").rstrip("/")
         self.token = os.environ.get("HOME_ASSISTANT_TOKEN", "")
         self.layout_path = layout_path
         self._lock = threading.Lock()
-        self._base_entities = {item["id"]: item.copy() for item in self.config.get("entities", [])
-                               if item.get("id") and item.get("entity_id")}
+        self.providers = {provider.name: provider for provider in providers if provider.enabled}
+        self._base_entities = {}
+        for item in self.config.get("entities", []):
+            if item.get("id") and item.get("entity_id"):
+                copied = item.copy()
+                copied["provider"] = "home_assistant"
+                self._base_entities[item["id"]] = copied
+        for provider in self.providers.values():
+            for item in provider.entities():
+                self._base_entities[item["id"]] = item.copy()
         self._layout = self._read_layout()
         self.entities: dict[str, dict[str, Any]] = {}
         self._rebuild_entities()
@@ -68,13 +77,16 @@ class HomeAssistant:
 
     @property
     def enabled(self) -> bool:
-        return bool(self.url and self.token and self.entities)
+        ha_ready = bool(self.url and self.token and any(
+            item.get("provider", "home_assistant") == "home_assistant"
+            for item in self.entities.values()))
+        return ha_ready or bool(self.providers)
 
     def public_config(self) -> dict[str, Any]:
         return {"enabled": self.enabled, "configured": bool(self.entities),
                 "rooms": self.rooms(),
                 "entities": [{k: v for k, v in item.items()
-                              if k in {"id", "entity_id", "name", "room", "icon", "type", "read_only"}}
+                              if k in {"id", "entity_id", "name", "room", "icon", "type", "read_only", "provider"}}
                              for item in self.entities.values()]}
 
     def rooms(self) -> list[str]:
@@ -122,7 +134,8 @@ class HomeAssistant:
                     "name": str(values.get("name") or entity_id).strip()[:80],
                     "room": str(values.get("room") or "Home").strip()[:60],
                     "icon": str(values.get("icon") or {"light": "💡", "switch": "🔌", "sensor": "◌"}[domain])[:8],
-                    "type": domain, "read_only": domain == "sensor"}
+                    "type": domain, "read_only": domain == "sensor",
+                    "provider": "home_assistant"}
             self._layout["added"][item_id] = item
             self._rebuild_entities()
             self._save_layout()
@@ -161,42 +174,72 @@ class HomeAssistant:
     def turn_off_room(self, room: str) -> dict[str, Any]:
         targets = [item_id for item_id, item in self.entities.items()
                    if item.get("room", "Home") == room and not item.get("read_only") and
-                   item["entity_id"].split(".", 1)[0] in {"light", "switch"}]
+                   item.get("type", item["entity_id"].split(".", 1)[0]) in {"light", "switch"}]
         errors = []
         for item_id in targets:
             try:
                 self.command(item_id, "turn_off")
-            except (ValueError, httpx.HTTPError) as exc:
+            except (ValueError, RuntimeError, httpx.HTTPError) as exc:
                 errors.append({"id": item_id, "error": str(exc)})
         return {"ok": not errors, "turned_off": targets, "errors": errors}
 
     def _client(self):
-        if not self.enabled:
+        if not self.url or not self.token:
             raise RuntimeError("Home Assistant is not configured")
         return httpx.Client(base_url=self.url, timeout=8,
                             headers={"Authorization": f"Bearer {self.token}"})
 
     def states(self) -> list[dict[str, Any]]:
-        with self._client() as client:
-            result = []
+        result = []
+        ha_items = [item for item in self.entities.values()
+                    if item.get("provider", "home_assistant") == "home_assistant"]
+        client = self._client() if ha_items and self.url and self.token else None
+        try:
+            for item in ha_items:
+                raw = {"state": "unavailable", "attributes": {}}
+                if client:
+                    try:
+                        response = client.get(f"/api/states/{item['entity_id']}")
+                        response.raise_for_status()
+                        raw = response.json()
+                    except httpx.HTTPError:
+                        log.warning("Home Assistant entity unavailable: %s", item["entity_id"])
+                result.append(self._state_record(item, raw.get("state", "unknown"),
+                                                 raw.get("attributes", {})))
+        finally:
+            if client:
+                client.close()
+        for provider_name, provider in self.providers.items():
+            provider_states = {item["id"]: item for item in provider.states()}
             for item in self.entities.values():
-                response = client.get(f"/api/states/{item['entity_id']}")
-                response.raise_for_status()
-                raw = response.json()
-                result.append({"id": item["id"], "entity_id": item["entity_id"],
-                               "name": item.get("name", item["id"]),
-                               "room": item.get("room", "Home"),
-                               "icon": item.get("icon", "⌂"),
-                               "type": item.get("type", item["entity_id"].split(".")[0]),
-                               "read_only": item.get("read_only", False),
-                               "state": raw.get("state", "unknown"),
-                               "attributes": raw.get("attributes", {})})
-            return result
+                if item.get("provider") != provider_name:
+                    continue
+                raw = provider_states.get(item["id"], {"state": "unavailable", "attributes": {}})
+                result.append(self._state_record(item, raw["state"], raw.get("attributes", {})))
+        return result
+
+    @staticmethod
+    def _state_record(item: dict[str, Any], state: str,
+                      attributes: dict[str, Any]) -> dict[str, Any]:
+        return {"id": item["id"], "entity_id": item["entity_id"],
+                "name": item.get("name", item["id"]),
+                "room": item.get("room", "Home"),
+                "icon": item.get("icon", "⌂"),
+                "type": item.get("type", item["entity_id"].split(".")[0]),
+                "read_only": item.get("read_only", False),
+                "provider": item.get("provider", "home_assistant"),
+                "state": state, "attributes": attributes}
 
     def command(self, item_id: str, action: str, data: dict[str, Any] | None = None):
         item = self.entities.get(item_id)
         if not item:
             raise KeyError(item_id)
+        provider_name = item.get("provider", "home_assistant")
+        if provider_name != "home_assistant":
+            provider = self.providers.get(provider_name)
+            if not provider:
+                raise RuntimeError(f"Device provider {provider_name} is unavailable")
+            return provider.command(item_id, action, data)
         domain = item["entity_id"].split(".", 1)[0]
         if domain not in {"light", "switch"}:
             raise ValueError("this entity is read-only")

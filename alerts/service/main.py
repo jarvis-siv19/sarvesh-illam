@@ -11,6 +11,7 @@ from .api import build_app
 from .events import EventBus
 from .health import HealthMonitor
 from .home import HomeAssistant
+from .smarteefi import SmarteefiProvider
 from .music import MusicReactive
 from .home_notify import HomeAssistantNotifier
 from .notify import TelegramNotifier
@@ -21,13 +22,31 @@ log = logging.getLogger(__name__)
 BASE = Path(__file__).resolve().parent.parent  # alerts/
 
 
+def _merge_config(base, override):
+    """Recursively merge a per-house local config over tracked defaults."""
+    if not isinstance(base, dict) or not isinstance(override, dict):
+        return override
+    merged = base.copy()
+    for key, value in override.items():
+        merged[key] = _merge_config(merged[key], value) if key in merged else value
+    return merged
+
+
+def load_config():
+    config = yaml.safe_load((BASE / "config.yaml").read_text()) or {}
+    local_path = BASE / "config.local.yaml"
+    if local_path.is_file():
+        config = _merge_config(config, yaml.safe_load(local_path.read_text()) or {})
+    return config
+
+
 def main():
     logging.basicConfig(
         level=logging.INFO,
         format="%(asctime)s %(levelname).3s %(name)s: %(message)s",
         datefmt="%H:%M:%S")
 
-    cfg = yaml.safe_load((BASE / "config.yaml").read_text())
+    cfg = load_config()
     snapshot_dir = BASE / cfg["snapshot_dir"]
 
     readers = {
@@ -37,7 +56,9 @@ def main():
     for r in readers.values():
         r.start()
 
-    home = HomeAssistant(cfg.get("home_assistant", {}), BASE / "home-layout.json")
+    smarteefi = SmarteefiProvider(cfg.get("smarteefi", {}))
+    home = HomeAssistant(cfg.get("home_assistant", {}), BASE / "home-layout.json",
+                         providers=[smarteefi])
     music = MusicReactive(home, cfg.get("music_reactive", {}))
     notifier = TelegramNotifier(cfg.get("telegram", {}).get("mute_kinds", ()))
     bus = EventBus(snapshot_dir, cfg["snapshot_keep"], [notifier, HomeAssistantNotifier(home)])

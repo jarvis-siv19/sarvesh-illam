@@ -178,10 +178,39 @@ Without these the service still runs — events just stay local (log + dashboard
 
 ## Home Assistant / smart home
 
+The Home tab is provider-based. Home Assistant remains the general integration
+layer for supported lights, switches, and sensors, while LAN-only adapters can
+feed the same dashboard without cloud credentials. Every house runs its own
+alerts service on its LAN; house-specific device identities belong in the
+ignored `alerts/config.local.yaml` file.
+
+### Smarteefi SE51 strips
+
+Smarteefi strips use a broadcast-only local protocol, so the adapter must run
+on the same LAN as the strip. It does not require the Smarteefi app, cloud
+account, password, API token, or activation code.
+
+```sh
+cp alerts/config.local.example.yaml alerts/config.local.yaml
+```
+
+Edit the copied file with the strip's serial, current IP, subnet broadcast,
+room, and outlet names. Restart `alerts/run.sh`; the five outlets appear as
+ordinary switches on the Home tab. Add another item under `strips` for each
+additional strip on that house's network. Deploy the same repository and a
+different ignored local config at another house—never commit one house's
+device inventory as shared configuration.
+
+The IP is used to reject replies from the wrong host; commands themselves are
+sent to the subnet broadcast address because tested SE51 firmware does not
+answer unicast packets. Reserve the strip IP in the router when possible.
+
+### Home Assistant devices
+
 Sarvesh Illam keeps Home Assistant's long-lived token on the local alerts
-service; it is never placed in the dashboard or Android app. First connect the
-Philips bulb and Wipro plug in Home Assistant, then set their entity IDs in
-`alerts/config.yaml` and add the Home Assistant URL/token to `.env`:
+service; it is never placed in the dashboard or Android app. Connect devices
+in Home Assistant, set their entity IDs in `alerts/config.yaml`, and add the
+Home Assistant URL/token to `.env`:
 
 ```sh
 HOME_ASSISTANT_URL=http://homeassistant.local:8123
@@ -235,9 +264,10 @@ the LAN dashboard address.
 ## Status
 
 Both DVRs live, 8 cameras on the LAN dashboard; camera-health, person, and
-rider detection running. The Home tab controls the WiZ bulb, Wipro plug, and
-live plug measurements through Home Assistant, with shared music-reactive
-lighting available from the dashboard.
+rider detection running. The Home tab supports Home Assistant devices and
+local Smarteefi SE51 outlets through the same room/device interface, with
+shared music-reactive lighting available for the configured Home Assistant
+light.
 
 Planned: helmet classifier fine-tuned on the collected rider dataset (then
 no-helmet Telegram alerts), Android microphone permission for music-reactive

@@ -1,0 +1,22 @@
+# Copy to config.local.yaml on each house's local server. This file is ignored
+# by Git so network addresses and device identities do not leak across sites.
+
+smarteefi:
+  timeout: 3
+  retries: 2
+  netmask: 255.255.255.0
+  strips:
+    - id: living_room_strip
+      name: Living room power strip
+      room: Living room
+      serial: replace_me
+      ip: 192.168.1.50
+      # Set explicitly when the LAN is not a /24 or broadcast auto-detection is
+      # unsuitable. The strip accepts broadcasts, not direct unicast commands.
+      broadcast: 192.168.1.255
+      ports:
+        1: {name: Outlet 1, icon: "🔌"}
+        2: {name: Outlet 2, icon: "🔌"}
+        3: {name: Outlet 3, icon: "🔌"}
+        4: {name: Outlet 4, icon: "🔌"}
+        5: {name: Outlet 5, icon: "🔌"}

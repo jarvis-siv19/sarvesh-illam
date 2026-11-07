@@ -13,6 +13,7 @@ alerts/snapshots/
 alerts/models/
 alerts/dataset/
 alerts/home-layout.json
+alerts/config.local.yaml
 node_modules/
 .tools/
 home-assistant/config/
