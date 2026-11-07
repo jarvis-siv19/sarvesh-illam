@@ -1,12 +1,11 @@
 """Entry point: wire readers → health monitor → event bus → Telegram + API."""
 import logging
+import os
 import threading
 import time
 from pathlib import Path
 
 import uvicorn
-import yaml
-
 from .api import build_app
 from .events import EventBus
 from .health import HealthMonitor
@@ -16,28 +15,12 @@ from .music import MusicReactive
 from .home_notify import HomeAssistantNotifier
 from .notify import TelegramNotifier
 from .reader import CameraReader
+from .settings import load_config
 
 log = logging.getLogger(__name__)
 
-BASE = Path(__file__).resolve().parent.parent  # alerts/
-
-
-def _merge_config(base, override):
-    """Recursively merge a per-house local config over tracked defaults."""
-    if not isinstance(base, dict) or not isinstance(override, dict):
-        return override
-    merged = base.copy()
-    for key, value in override.items():
-        merged[key] = _merge_config(merged[key], value) if key in merged else value
-    return merged
-
-
-def load_config():
-    config = yaml.safe_load((BASE / "config.yaml").read_text()) or {}
-    local_path = BASE / "config.local.yaml"
-    if local_path.is_file():
-        config = _merge_config(config, yaml.safe_load(local_path.read_text()) or {})
-    return config
+BASE = Path(os.environ.get("SARVESH_CONFIG_DIR", Path(__file__).resolve().parent.parent))
+DATA = Path(os.environ.get("SARVESH_DATA_DIR", BASE))
 
 
 def main():
@@ -46,8 +29,9 @@ def main():
         format="%(asctime)s %(levelname).3s %(name)s: %(message)s",
         datefmt="%H:%M:%S")
 
-    cfg = load_config()
-    snapshot_dir = BASE / cfg["snapshot_dir"]
+    cfg = load_config(BASE)
+    cfg["go2rtc_rtsp"] = os.environ.get("GO2RTC_RTSP", cfg["go2rtc_rtsp"])
+    snapshot_dir = DATA / cfg["snapshot_dir"]
     reconnect = cfg.get("camera_reconnect", {})
 
     readers = {
@@ -63,12 +47,16 @@ def main():
     for r in readers.values():
         r.start()
 
-    smarteefi = SmarteefiProvider(cfg.get("smarteefi", {}))
-    home = HomeAssistant(cfg.get("home_assistant", {}), BASE / "home-layout.json",
-                         providers=[smarteefi])
-    music = MusicReactive(home, cfg.get("music_reactive", {}))
+    home_enabled = os.environ.get("ALERTS_HOME_ENABLED", "1") != "0"
+    smarteefi = SmarteefiProvider(cfg.get("smarteefi", {})) if home_enabled else None
+    home = HomeAssistant(cfg.get("home_assistant", {}), DATA / "home-layout.json",
+                         providers=[smarteefi] if smarteefi else []) if home_enabled else None
+    music = MusicReactive(home, cfg.get("music_reactive", {})) if home else None
     notifier = TelegramNotifier(cfg.get("telegram", {}).get("mute_kinds", ()))
-    bus = EventBus(snapshot_dir, cfg["snapshot_keep"], [notifier, HomeAssistantNotifier(home)])
+    notifiers = [notifier]
+    if home:
+        notifiers.append(HomeAssistantNotifier(home))
+    bus = EventBus(snapshot_dir, cfg["snapshot_keep"], notifiers)
     monitor = HealthMonitor(cfg, bus, readers)
 
     def health_loop():
@@ -89,8 +77,8 @@ def main():
             time.sleep(10)
         from .person import PersonDetector
         from .rider import RiderWatcher
-        det = PersonDetector(cfg, bus, readers, monitor, BASE,
-                             rider=RiderWatcher(cfg, bus, BASE))
+        det = PersonDetector(cfg, bus, readers, monitor, DATA,
+                             rider=RiderWatcher(cfg, bus, DATA))
         log.info("Camera frame available; person detection started")
         while True:
             t0 = time.time()
@@ -103,9 +91,9 @@ def main():
     threading.Thread(target=person_loop, name="person", daemon=True).start()
 
     app = build_app(bus, monitor, snapshot_dir, home, music)
-    log.info("Home dashboard API ready on port %s; camera retries run in the background",
-             cfg["api_port"])
-    uvicorn.run(app, host="0.0.0.0", port=cfg["api_port"], log_level="warning")
+    port = int(os.environ.get("ALERTS_API_PORT", cfg["api_port"]))
+    log.info("Alerts API ready on port %s; camera retries run in the background", port)
+    uvicorn.run(app, host="0.0.0.0", port=port, log_level="warning")
 
 
 if __name__ == "__main__":

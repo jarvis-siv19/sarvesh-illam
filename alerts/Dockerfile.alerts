@@ -1,0 +1,11 @@
+FROM ghcr.io/astral-sh/uv:python3.12-bookworm-slim
+
+ENV PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1
+WORKDIR /app
+
+COPY alerts/pyproject.toml alerts/uv.lock /app/
+RUN uv sync --frozen --no-dev
+
+COPY alerts/service /app/service
+
+CMD ["uv", "run", "python", "-m", "service.main"]

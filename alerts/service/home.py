@@ -27,7 +27,7 @@ class HomeAssistant:
         self.providers = {provider.name: provider for provider in providers if provider.enabled}
         self._base_entities = {}
         for item in self.config.get("entities", []):
-            if item.get("id") and item.get("entity_id"):
+            if self.url and self.token and item.get("id") and item.get("entity_id"):
                 copied = item.copy()
                 copied["provider"] = "home_assistant"
                 self._base_entities[item["id"]] = copied
@@ -193,22 +193,25 @@ class HomeAssistant:
         result = []
         ha_items = [item for item in self.entities.values()
                     if item.get("provider", "home_assistant") == "home_assistant"]
-        client = self._client() if ha_items and self.url and self.token else None
-        try:
-            for item in ha_items:
-                raw = {"state": "unavailable", "attributes": {}}
-                if client:
-                    try:
-                        response = client.get(f"/api/states/{item['entity_id']}")
-                        response.raise_for_status()
-                        raw = response.json()
-                    except httpx.HTTPError:
-                        log.warning("Home Assistant entity unavailable: %s", item["entity_id"])
-                result.append(self._state_record(item, raw.get("state", "unknown"),
-                                                 raw.get("attributes", {})))
-        finally:
-            if client:
-                client.close()
+        ha_states = {}
+        if ha_items and self.url and self.token:
+            try:
+                # One bounded request keeps an optional/offline Home Assistant
+                # from delaying local providers once per configured entity.
+                with httpx.Client(
+                        base_url=self.url,
+                        timeout=httpx.Timeout(2.0, connect=1.0),
+                        headers={"Authorization": f"Bearer {self.token}"}) as client:
+                    response = client.get("/api/states")
+                    response.raise_for_status()
+                    ha_states = {raw.get("entity_id"): raw for raw in response.json()}
+            except (httpx.HTTPError, ValueError, TypeError):
+                log.warning("Home Assistant unavailable; returning local device states")
+        for item in ha_items:
+            raw = ha_states.get(item["entity_id"],
+                                {"state": "unavailable", "attributes": {}})
+            result.append(self._state_record(item, raw.get("state", "unknown"),
+                                             raw.get("attributes", {})))
         for provider_name, provider in self.providers.items():
             provider_states = {item["id"]: item for item in provider.states()}
             for item in self.entities.values():

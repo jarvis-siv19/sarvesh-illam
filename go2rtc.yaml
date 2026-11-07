@@ -13,7 +13,7 @@ log:
   level: info
 
 # Credentials and hosts come from the environment — see .env.example.
-# Start via ./run.sh, which loads .env before exec'ing go2rtc.
+# Start independently with `./stack.sh start cctv`.
 #
 # Each camera exposes two streams:
 #   main (subtype=0) = 1280x720 — used for single-camera focus view

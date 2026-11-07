@@ -259,6 +259,7 @@
     </div>
   </div>
 
+<script src="runtime-config.js"></script>
 <script>
 /* ============================ CONFIG ============================ */
 // Served by go2rtc itself (api.static_dir), so same origin; the localhost
@@ -435,7 +436,17 @@ async function refreshAvailability(initial){
     document.getElementById("countTxt").textContent =
       `${CAMERAS.filter(camAvailable).length} / ${CAMERAS.length} online`;
     if ((changed || initial) && securityVisible() && !focusEl.classList.contains("show")) renderGrid();
-  }catch(e){ document.getElementById("countTxt").textContent = "go2rtc offline"; }
+  }catch(e){
+    const hadCameras = available.size > 0 || focusEl.classList.contains("show");
+    available = new Set();
+    document.getElementById("countTxt").textContent = "CCTV service offline";
+    if (focusEl.classList.contains("show")){
+      focusEl.classList.remove("show");
+      fvideo.innerHTML = "";
+      focusIndex = -1;
+    }
+    if ((hadCameras || initial) && securityVisible()) renderGrid();
+  }
 }
 
 /* ---- controls ---- */
@@ -481,8 +492,9 @@ focusEl.addEventListener("touchend", e => {
 window.addEventListener("resize", () => { if(!focusEl.classList.contains("show")) fitLayout(); });
 
 /* ---- alerts service (optional — the page works fine without it) ---- */
-const ALERTS = (location.protocol.startsWith("http")
-  ? `${location.protocol}//${location.hostname}` : "http://localhost") + ":8090";
+const ALERTS = window.SARVESH_ALERTS_ORIGIN ||
+  ((location.protocol.startsWith("http")
+    ? `${location.protocol}//${location.hostname}` : "http://localhost") + ":8090");
 const KIND_ICON = {down:"📵", black:"⬛", covered:"🫣", person:"🚶", rider:"🛵", no_helmet:"🪖"};
 let lastEvId = Number(localStorage.getItem("lastEvId") || 0);
 

@@ -27,35 +27,53 @@ setting `api.static_dir` replaces go2rtc's embedded web assets, so the player
 component must be shipped alongside the dashboard. If you upgrade the go2rtc
 binary, re-vendor both files from the matching tag.
 
-## Setup
+## Start the services
 
-Download the go2rtc binary for your platform from the
-[releases page](https://github.com/AlexxIT/go2rtc/releases) into this directory
-and make it executable:
+Docker Compose keeps every capability independent. The dashboard never
+requires CCTV, alerts, or Home Assistant to be running.
 
-```sh
-chmod +x go2rtc
-```
+On Docker Desktop for macOS, enable **Settings → Resources → Network → Enable
+host networking** once. The local Smarteefi protocol uses LAN broadcasts, so
+the `home` container needs host networking.
 
-Create a dedicated stream user on each DVR (Main Menu → Account) — don't reuse
-the admin login. Both DVRs are assumed to share the same username/password.
-Avoid special characters in the password, or they must be URL-encoded in the
-RTSP URL.
-
-Then configure and run:
+Start only the useful default—dashboard plus local home-device control:
 
 ```sh
-cp .env.example .env   # fill in credentials and DVR addresses
-./run.sh
+./stack.sh start
 ```
 
-Open `http://<LAN_IP>:1984/` from any device on the LAN — desktop, phone, or TV
-browser. The Security tab holds live cameras and alerts; the Home tab controls
-the connected light and plug, including WiZ colour, temperature, and effects.
+Open `http://<LAN_IP>:1984/` from any device on the LAN. Start or stop optional
+services whenever needed:
+
+```sh
+./stack.sh start cctv
+./stack.sh start alerts
+./stack.sh start homeassistant
+
+./stack.sh stop cctv
+./stack.sh stop alerts
+./stack.sh stop homeassistant
+
+./stack.sh status
+./stack.sh logs home
+./stack.sh down
+```
+
+`./stack.sh start all` starts everything. `./run.sh` remains as a shortcut for
+`dashboard + home`. Stopping a service does not delete its data.
+
+The Home tab controls configured local devices even when every camera and Home
+Assistant are offline. The Security tab shows unavailable cameras as offline.
 Phones get a scrollable column layout with swipe
 navigation in the focus view, and "Add to Home Screen" installs it as a
 full-screen app. The page also still works opened directly as a `file://` on
 the host machine.
+
+### Optional CCTV configuration
+
+Copy `.env.example` to `.env` and fill in the DVR credentials and addresses
+only when the `cctv` service is needed. Create a dedicated stream user on each
+DVR; do not reuse the admin login.
 
 Give the host machine a fixed address (DHCP reservation on the router, or a
 manual IP) — it's baked into `LAN_IP` and into every device's bookmark.
@@ -136,7 +154,8 @@ extra connections — and pushes alerts to Telegram plus an event feed the
 dashboard shows in its bell menu.
 
 ```sh
-cd alerts && ./run.sh     # http://localhost:8090/api/events
+./stack.sh start cctv alerts
+./stack.sh logs alerts
 ```
 
 What it detects today:
@@ -202,7 +221,7 @@ cp alerts/config.local.example.yaml alerts/config.local.yaml
 ```
 
 Edit the copied file with the strip's serial, current IP, subnet broadcast,
-room, and outlet names. Restart `alerts/run.sh`; the five outlets appear as
+room, and outlet names. Restart `./stack.sh restart home`; the five outlets appear as
 ordinary switches on the Home tab. Add another item under `strips` for each
 additional strip on that house's network. Deploy the same repository and a
 different ignored local config at another house—never commit one house's
@@ -214,7 +233,7 @@ answer unicast packets. Reserve the strip IP in the router when possible.
 
 ### Home Assistant devices
 
-Sarvesh Illam keeps Home Assistant's long-lived token on the local alerts
+Sarvesh Illam keeps Home Assistant's long-lived token on the local home
 service; it is never placed in the dashboard or Android app. Connect devices
 in Home Assistant, set their entity IDs in `alerts/config.yaml`, and add the
 Home Assistant URL/token to `.env`:
@@ -224,7 +243,7 @@ HOME_ASSISTANT_URL=http://homeassistant.local:8123
 HOME_ASSISTANT_TOKEN=replace-with-a-long-lived-token
 ```
 
-Restart `alerts/run.sh`. The Home tab will then expose only those configured
+Restart `./stack.sh restart home`. The Home tab will then expose only those configured
 devices. WiZ lights support on/off, brightness, colour temperature, RGB colour,
 and their available effects; switches and configured sensor readings appear in
 the same room card. Philips Smart Wi-Fi bulbs sold in India generally use WiZ and should
@@ -236,7 +255,7 @@ Use **+ Room** and **+ Device** on the Home tab to organise the dashboard
 without editing YAML. Each room has a **Turn off room** action for its configured
 lights and switches, while each device can be renamed, moved, re-iconed, or
 removed from the dashboard (removing it never deletes it from Home Assistant).
-These shared layout choices are saved locally in `alerts/home-layout.json`,
+These shared layout choices are saved locally in `data/home/home-layout.json`,
 which is intentionally untracked because it is household-specific.
 
 ### Music-reactive lighting
@@ -248,7 +267,7 @@ microphone permission only while the mode is running; no audio is uploaded or
 stored.
 
 Only one device can be the source at a time. Other open dashboards show the
-current source and can stop it or take over. The alerts service owns all Home
+current source and can stop it or take over. The home service owns all Home
 Assistant writes and automatically releases a source that stops checking in
 after 12 seconds. Configure the controlled dashboard light in
 `alerts/config.yaml` under `music_reactive.light_id`.

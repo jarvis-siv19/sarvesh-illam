@@ -1,11 +1,11 @@
 /* Sarvesh Illam home controls. Home Assistant credentials stay server-side. */
 (() => {
-  // HOST is the go2rtc address selected by the dashboard (including in the
-  // Android shell), while the companion alerts/Home API runs on port 8090.
+  // Docker uses same-origin proxy routes. The fallback keeps the legacy
+  // go2rtc-served dashboard and Android shell compatible with port 8090.
   const apiUrl = new URL(HOST);
   apiUrl.port = "8090";
   apiUrl.pathname = "";
-  const API = apiUrl.origin;
+  const API = window.SARVESH_API_ORIGIN || apiUrl.origin;
   const view = document.getElementById("homeView");
   let config = null;
   let music = null;
@@ -218,7 +218,7 @@
       const c = await fetch(`${API}/api/home/config`, {cache:"no-store"});
       config = await c.json();
       if (!config.configured) return renderNotice("Set up your home", "Add the Home Assistant entity IDs in alerts/config.yaml.");
-      if (!config.enabled) return renderNotice("Home Assistant is not connected", "Set HOME_ASSISTANT_URL and HOME_ASSISTANT_TOKEN in .env, then restart the alerts service.");
+      if (!config.enabled) return renderNotice("No home provider is connected", "Configure a local device in alerts/config.local.yaml or start the optional Home Assistant service.");
       const [r, musicResponse] = await Promise.all([fetch(`${API}/api/home/states`, {cache:"no-store"}), fetch(`${API}/api/home/music-reactive`, {cache:"no-store"})]);
       if (!r.ok) throw new Error();
       music = musicResponse.ok ? await musicResponse.json() : null;

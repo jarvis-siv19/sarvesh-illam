@@ -20,6 +20,7 @@ home-assistant/config/
 android/.gradle/
 android/build/
 android/app/build/
+data/
 
 .DS_Store
 .claude/settings.local.json

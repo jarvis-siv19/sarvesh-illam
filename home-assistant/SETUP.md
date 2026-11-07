@@ -3,7 +3,8 @@
 Start the local automation server from the repository root:
 
 ```sh
-docker compose -f compose.homeassistant.yml up -d
+./stack.sh start homeassistant
+./stack.sh logs homeassistant
 ```
 
 Open `http://<MAC_LAN_IP>:8123` and complete the first-user setup. This web page
@@ -48,8 +49,7 @@ Illam at port 1984.
 4. Start/restart the local bridge:
 
    ```sh
-   cd alerts
-   ./run.sh
+   ./stack.sh restart home
    ```
 
 5. Refresh Sarvesh Illam and select **Home**. Device state and controls will
@@ -73,11 +73,5 @@ music_reactive:
   source_timeout: 12
 ```
 
-## Why not containerize every service now?
-
-It is possible, but the live camera stack is currently running directly on the
-Mac and is already proven to reach the DVRs. Moving go2rtc into Docker Desktop
-requires stopping that dashboard and carefully mapping HTTP, RTSP, TCP WebRTC,
-and UDP WebRTC ports; the alert container also pulls large ML dependencies.
-Run Home Assistant in Docker first, verify device control, then migrate the
-camera stack in a planned maintenance window rather than risking the live feed.
+Home Assistant is optional. Stop it with `./stack.sh stop homeassistant`; local
+Smarteefi control continues through the independent `home` service.

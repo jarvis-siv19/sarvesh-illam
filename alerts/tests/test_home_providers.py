@@ -1,6 +1,7 @@
 import tempfile
 import unittest
 from pathlib import Path
+from unittest.mock import MagicMock, patch
 
 from service.home import HomeAssistant
 
@@ -42,6 +43,37 @@ class HomeProviderTests(unittest.TestCase):
             self.assertEqual(home.states()[0]["state"], "on")
             home.command("test_switch", "turn_off")
         self.assertEqual(provider.last_command, ("test_switch", "turn_off", None))
+
+    def test_home_assistant_entities_stay_hidden_without_credentials(self):
+        provider = FakeProvider()
+        home = HomeAssistant({"entities": [{
+            "id": "optional_light",
+            "entity_id": "light.optional",
+            "name": "Optional light",
+        }]}, providers=[provider])
+
+        self.assertEqual([item["id"] for item in home.public_config()["entities"]],
+                         ["test_switch"])
+
+    @patch.dict("os.environ", {
+        "HOME_ASSISTANT_URL": "http://homeassistant.invalid:8123",
+        "HOME_ASSISTANT_TOKEN": "test-token",
+    })
+    @patch("service.home.httpx.Client")
+    def test_home_assistant_states_use_one_request_and_keep_local_states(self, client_class):
+        response = MagicMock()
+        response.json.return_value = []
+        client_class.return_value.__enter__.return_value.get.return_value = response
+        provider = FakeProvider()
+        home = HomeAssistant({"entities": [
+            {"id": "light_one", "entity_id": "light.one"},
+            {"id": "light_two", "entity_id": "light.two"},
+        ]}, providers=[provider])
+
+        states = home.states()
+
+        client_class.return_value.__enter__.return_value.get.assert_called_once_with("/api/states")
+        self.assertEqual(next(item for item in states if item["id"] == "test_switch")["state"], "on")
 
 
 if __name__ == "__main__":
