@@ -18,6 +18,13 @@ cameras:
   cam7: { label: "Cam 7", person_alerts: true }
   cam8: { label: "Cam 8", person_alerts: true }
 
+# Camera failures never block the Home dashboard. Try quickly at first, then
+# leave the camera offline and retry quietly in the background.
+camera_reconnect:
+  fast_retries: 3
+  open_timeout: 5       # seconds allowed for each RTSP connection attempt
+  offline_retry: 300    # retry an offline camera every five minutes
+
 health:
   down_after: 30        # s without a frame -> "camera down" (a go2rtc restart
                         # reconnects everything in ~20s and must not alert)

@@ -13,8 +13,8 @@
 <style>
   :root{
     --bg:#0b0e13; --panel:#14181f; --panel2:#1a1f28; --line:#242c38;
-    --text:#e7ecf3; --muted:#8b97a8; --faint:#5a6473;
-    --accent:#4f8cff; --live:#37d67a; --amber:#f5a623; --danger:#ff5c5c;
+    --text:#e7ecf3; --muted:#9ba6b6; --faint:#8a95a6;
+    --accent:#1d5fd1; --live:#37d67a; --amber:#f5a623; --danger:#c83b3b;
     --radius:14px; --cols:2; --tileW:320px;
   }
   *{box-sizing:border-box}
@@ -34,7 +34,7 @@
   .brand{display:flex;align-items:center;gap:11px;font-weight:660;letter-spacing:.2px;font-size:15px}
   .brand .logo{
     width:30px;height:30px;border-radius:9px;display:grid;place-items:center;font-size:16px;
-    background:linear-gradient(135deg,#2b6bff,#1b3a86); box-shadow:0 2px 10px rgba(79,140,255,.35);
+    background:linear-gradient(135deg,#2b6bff,#1b3a86); box-shadow:0 2px 10px rgba(0,0,0,.35);
   }
   .brand small{color:var(--muted);font-weight:500;font-size:12px;margin-left:2px}
   .spacer{flex:1}
@@ -42,9 +42,7 @@
     display:inline-flex;align-items:center;gap:7px;font-size:12px;color:var(--muted);
     background:var(--panel2);border:1px solid var(--line);padding:5px 11px;border-radius:999px;
   }
-  .count .dot{width:8px;height:8px;border-radius:50%;background:var(--live);
-    box-shadow:0 0 0 0 rgba(55,214,122,.6);animation:pulse 2.2s infinite}
-  @keyframes pulse{0%{box-shadow:0 0 0 0 rgba(55,214,122,.55)}70%{box-shadow:0 0 0 6px rgba(55,214,122,0)}100%{box-shadow:0 0 0 0 rgba(55,214,122,0)}}
+  .count .dot{width:8px;height:8px;border-radius:50%;background:var(--live)}
 
   /* segmented DVR filter */
   .seg{display:inline-flex;background:var(--panel2);border:1px solid var(--line);border-radius:10px;padding:3px;gap:2px}
@@ -98,7 +96,7 @@
   .label .sig{width:7px;height:7px;border-radius:50%;background:var(--amber);transition:.3s}
   .tile.live .label .sig{background:var(--live)}
   .badge{
-    position:absolute;right:9px;top:9px;z-index:4;font-size:10px;font-weight:700;letter-spacing:.5px;
+    position:absolute;right:9px;top:9px;z-index:4;font-size:11px;font-weight:700;letter-spacing:.5px;
     padding:3px 7px;border-radius:6px;background:rgba(7,10,15,.72);backdrop-filter:blur(7px);
     color:var(--muted);pointer-events:none;
   }
@@ -150,7 +148,7 @@
   .bell{position:relative}
   .bell .n{
     position:absolute;top:-5px;right:-5px;min-width:16px;height:16px;border-radius:8px;
-    background:var(--danger);color:#fff;font-size:10px;font-weight:700;
+    background:var(--danger);color:#fff;font-size:11px;font-weight:700;
     display:grid;place-items:center;padding:0 4px;
   }
   .alertbar{
@@ -163,7 +161,7 @@
   .alertbar.show{display:flex}
   .alertbar .ic{font-size:16px}
   .tile.alerting{border-color:var(--danger);animation:alertpulse 1.2s ease-in-out 6}
-  @keyframes alertpulse{50%{box-shadow:0 0 0 4px rgba(255,92,92,.35)}}
+  @keyframes alertpulse{50%{border-color:#ff8a8a;filter:brightness(1.15)}}
   .drawer{
     position:absolute;right:12px;top:12px;bottom:12px;width:min(340px,85vw);z-index:25;
     background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);
@@ -303,6 +301,7 @@ hostLabel.onclick = () => {
 let hd = localStorage.getItem("hdgrid") === "1";
 let filter = localStorage.getItem("dvrfilter") || "all";   // "all" | "1" | "2"
 let available = new Set();
+let cameraHealth = {};
 let focusIndex = -1;
 
 const stage  = document.querySelector(".stage");
@@ -312,7 +311,11 @@ const fvideo = document.getElementById("fvideo");
 const fname  = document.getElementById("fname");
 
 function wsFor(name){ return `${HOST}/api/ws?src=${encodeURIComponent(name)}`; }
-function camAvailable(cam){ return available.has(cam.sub) || available.has(cam.main); }
+function camAvailable(cam){
+  return cameraHealth[cam.main]?.down !== true &&
+    (available.has(cam.sub) || available.has(cam.main));
+}
+function securityVisible(){ return !document.getElementById("homeView").classList.contains("show"); }
 function inFilter(cam){ return filter === "all" || String(cam.dvr) === filter; }
 function visibleCams(){ return CAMERAS.map((c,i)=>({c,i})).filter(x=>inFilter(x.c)); }
 
@@ -369,7 +372,7 @@ function renderGrid(){
       tile.classList.add("offline");
       tile.innerHTML = `<div class="offbox">
           <div class="ico">⃠</div><div class="t">${cam.name}</div>
-          <div class="s">DVR ${cam.dvr} · not connected</div></div>`;
+          <div class="s">DVR ${cam.dvr} · offline, retrying in background</div></div>`;
       grid.appendChild(tile);
       return;
     }
@@ -431,7 +434,7 @@ async function refreshAvailability(initial){
     available = next;
     document.getElementById("countTxt").textContent =
       `${CAMERAS.filter(camAvailable).length} / ${CAMERAS.length} online`;
-    if ((changed || initial) && !focusEl.classList.contains("show")) renderGrid();
+    if ((changed || initial) && securityVisible() && !focusEl.classList.contains("show")) renderGrid();
   }catch(e){ document.getElementById("countTxt").textContent = "go2rtc offline"; }
 }
 
@@ -513,6 +516,12 @@ function renderEvents(events){
 }
 
 function paintHealth(health){
+  const before = CAMERAS.map(cam => cameraHealth[cam.main]?.down === true).join(",");
+  cameraHealth = health || {};
+  const after = CAMERAS.map(cam => cameraHealth[cam.main]?.down === true).join(",");
+  document.getElementById("countTxt").textContent =
+    `${CAMERAS.filter(camAvailable).length} / ${CAMERAS.length} online`;
+  if (before !== after && securityVisible() && !focusEl.classList.contains("show")) renderGrid();
   document.querySelectorAll(".tile[data-cam]").forEach(t => {
     const h = health[t.dataset.cam];
     const dot = t.querySelector(".nightdot");
@@ -562,16 +571,30 @@ setInterval(()=> refreshAvailability(false), 15000);
 </script>
 <script src="home.js"></script>
 <script>
-document.getElementById("appnav").addEventListener("click", e => {
-  const button = e.target.closest("button[data-view]"); if (!button) return;
-  const home = button.dataset.view === "home";
+function setAppView(view, remember = true){
+  const home = view === "home";
+  const button = document.querySelector(`#appnav button[data-view="${home ? "home" : "security"}"]`);
   document.querySelectorAll("#appnav button").forEach(x => x.classList.toggle("on", x === button));
   document.getElementById("homeView").classList.toggle("show", home);
   document.getElementById("grid").style.display = home ? "none" : "flex";
   document.getElementById("filter").style.display = home ? "none" : "inline-flex";
   document.querySelector(".hd-toggle").style.display = home ? "none" : "flex";
-  if (home) window.SarveshHome?.load();
+  if (home){
+    focusEl.classList.remove("show");
+    fvideo.innerHTML = "";
+    focusIndex = -1;
+    teardownGrid();
+    window.SarveshHome?.load();
+  } else {
+    renderGrid();
+  }
+  if (remember) localStorage.setItem("sarveshView", home ? "home" : "security");
+}
+document.getElementById("appnav").addEventListener("click", e => {
+  const button = e.target.closest("button[data-view]"); if (!button) return;
+  setAppView(button.dataset.view);
 });
+setAppView(localStorage.getItem("sarveshView") || "security", false);
 </script>
 </body>
 </html>

@@ -48,9 +48,16 @@ def main():
 
     cfg = load_config()
     snapshot_dir = BASE / cfg["snapshot_dir"]
+    reconnect = cfg.get("camera_reconnect", {})
 
     readers = {
-        cam: CameraReader(cam, f"{cfg['go2rtc_rtsp']}/{cam}_sub")
+        cam: CameraReader(
+            cam,
+            f"{cfg['go2rtc_rtsp']}/{cam}_sub",
+            fast_retries=reconnect.get("fast_retries", 3),
+            offline_retry=reconnect.get("offline_retry", 300),
+            open_timeout=reconnect.get("open_timeout", 5),
+        )
         for cam in cfg["cameras"]
     }
     for r in readers.values():
@@ -65,8 +72,8 @@ def main():
     monitor = HealthMonitor(cfg, bus, readers)
 
     def health_loop():
-        # let streams connect and the sharpness baseline start forming
-        time.sleep(10)
+        # Camera connection runs independently; publish offline state promptly.
+        time.sleep(1)
         while True:
             try:
                 monitor.tick()
@@ -77,11 +84,14 @@ def main():
     threading.Thread(target=health_loop, name="health", daemon=True).start()
 
     def person_loop():
+        log.info("Person detection waiting for the first available camera frame")
+        while not any(reader.latest()[0] is not None for reader in readers.values()):
+            time.sleep(10)
         from .person import PersonDetector
         from .rider import RiderWatcher
         det = PersonDetector(cfg, bus, readers, monitor, BASE,
                              rider=RiderWatcher(cfg, bus, BASE))
-        time.sleep(10)
+        log.info("Camera frame available; person detection started")
         while True:
             t0 = time.time()
             try:
@@ -93,6 +103,8 @@ def main():
     threading.Thread(target=person_loop, name="person", daemon=True).start()
 
     app = build_app(bus, monitor, snapshot_dir, home, music)
+    log.info("Home dashboard API ready on port %s; camera retries run in the background",
+             cfg["api_port"])
     uvicorn.run(app, host="0.0.0.0", port=cfg["api_port"], log_level="warning")
 
 

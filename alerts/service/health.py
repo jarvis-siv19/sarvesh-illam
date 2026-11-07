@@ -69,7 +69,9 @@ class HealthMonitor:
 
             # -- down: no fresh frame (readers connect staggered at startup,
             #    so a camera that has never delivered gets a longer leash) --
-            if ts == 0.0:
+            if reader.offline:
+                stale = True
+            elif ts == 0.0:
                 stale = (now - self.started) > self.STARTUP_GRACE
             else:
                 stale = (now - ts) > self.h["down_after"]
@@ -136,4 +138,10 @@ class HealthMonitor:
             log.info("%s: switched to %s mode", label, target.upper())
 
     def snapshot_states(self):
-        return {cam: st.to_json() for cam, st in self.states.items()}
+        result = {}
+        for cam, st in self.states.items():
+            state = st.to_json()
+            reader = self.readers[cam]
+            state["retry_in"] = round(reader.retry_in) if reader.offline else 0
+            result[cam] = state
+        return result

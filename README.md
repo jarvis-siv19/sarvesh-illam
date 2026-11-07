@@ -161,6 +161,13 @@ What it detects today:
   frame saturation (with hysteresis and a grace window), thresholds adapt,
   and the dashboard shows a 🌙 on night-mode tiles.
 
+Camera access is optional at runtime. Each unreachable camera gets three
+bounded connection attempts, is then shown as offline, and retries quietly
+every five minutes. The dashboard and smart-home API remain available during
+that entire process. Selecting the Home tab tears down browser camera players,
+and the last selected tab is restored on the next visit. Person detection is
+not loaded until at least one camera has delivered a frame.
+
 ### Telegram setup
 
 1. Message **@BotFather** on Telegram → `/newbot` → copy the token.
