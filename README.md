@@ -32,9 +32,9 @@ binary, re-vendor both files from the matching tag.
 Docker Compose keeps every capability independent. The dashboard never
 requires CCTV, alerts, or Home Assistant to be running.
 
-On Docker Desktop for macOS, enable **Settings → Resources → Network → Enable
-host networking** once. The local Smarteefi protocol uses LAN broadcasts, so
-the `home` container needs host networking.
+On macOS, `stack.sh` runs the small `home` network bridge directly on the host
+because Docker Desktop cannot forward the Smarteefi LAN broadcast protocol.
+All other services remain isolated containers. Linux uses the `home` container.
 
 Start only the useful default—dashboard plus local home-device control:
 
